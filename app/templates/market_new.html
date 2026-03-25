@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thị Trường Chứng Khoán | TradingAgents</title>
+    <link rel="stylesheet" href="/static/css/market_iboard.css?v=3">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Top Navigation -->
+    <div class="top-nav">
+        <div class="nav-left">
+            <div class="logo">TradingAgents</div>
+            <nav class="nav-menu">
+                <a href="/" class="nav-link">
+                    <i class="fas fa-home"></i> Trang chủ
+                </a>
+                <a href="/market" class="nav-link active">VN30</a>
+                <a href="/market" class="nav-link">HNX30</a>
+                <a href="/market" class="nav-link">HOSE</a>
+                <a href="/market" class="nav-link">HNX</a>
+                <a href="/market" class="nav-link">UPCOM</a>
+            </nav>
+        </div>
+        <div class="nav-right">
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchInput" placeholder="Tìm kiếm CK">
+            </div>
+        </div>
+    </div>
+
+    <!-- Market Stats Bar -->
+    <div class="stats-bar">
+        <div class="stat-item">
+            <span class="stat-label">VN-INDEX</span>
+            <span class="stat-value" id="vnindex">--</span>
+            <span class="stat-change" id="vnindex-change">--</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">HNX</span>
+            <span class="stat-value" id="hnx">--</span>
+            <span class="stat-change" id="hnx-change">--</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">VN30</span>
+            <span class="stat-value" id="vn30">--</span>
+            <span class="stat-change" id="vn30-change">--</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+            <span class="stat-label">Tăng</span>
+            <span class="stat-count up" id="gain-count">245</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Giảm</span>
+            <span class="stat-count down" id="loss-count">189</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Tham chiếu</span>
+            <span class="stat-count ref" id="ref-count">67</span>
+        </div>
+    </div>
+
+    <!-- Price Board -->
+    <div class="price-board">
+        <table class="price-table">
+            <thead>
+                <tr>
+                    <th class="th-symbol" rowspan="2">CK</th>
+                    <th class="th-ref" rowspan="2">Trần</th>
+                    <th class="th-ref" rowspan="2">Sàn</th>
+                    <th class="th-ref" rowspan="2">TC</th>
+                    <th colspan="6" class="th-section-buy">Bên mua</th>
+                    <th rowspan="2" class="th-match">Giá</th>
+                    <th rowspan="2" class="th-match">KL</th>
+                    <th rowspan="2" class="th-change">+/-</th>
+                    <th rowspan="2" class="th-change">%</th>
+                    <th colspan="6" class="th-section-sell">Bên bán</th>
+                    <th rowspan="2" class="th-vol">Tổng KL</th>
+                    <th rowspan="2" class="th-price">Cao</th>
+                    <th rowspan="2" class="th-price">Thấp</th>
+                    <th colspan="2" class="th-section-foreign">ĐTNN</th>
+                </tr>
+                <tr>
+                    <th class="th-bid">Giá 3</th>
+                    <th class="th-bid">KL 3</th>
+                    <th class="th-bid">Giá 2</th>
+                    <th class="th-bid">KL 2</th>
+                    <th class="th-bid">Giá 1</th>
+                    <th class="th-bid">KL 1</th>
+                    <th class="th-ask">Giá 1</th>
+                    <th class="th-ask">KL 1</th>
+                    <th class="th-ask">Giá 2</th>
+                    <th class="th-ask">KL 2</th>
+                    <th class="th-ask">Giá 3</th>
+                    <th class="th-ask">KL 3</th>
+                    <th class="th-foreign">NN mua</th>
+                    <th class="th-foreign">NN bán</th>
+                </tr>
+            </thead>
+            <tbody id="priceTableBody">
+                <tr>
+                    <td colspan="24" class="loading-cell">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        Đang tải dữ liệu...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script src="/static/js/market_iboard.js?v=3"></script>
+</body>
+</html>

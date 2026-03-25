@@ -1,0 +1,15 @@
+typing-extensions
+langchain-openai
+pandas
+yfinance
+feedparser
+stockstats
+langgraph
+chromadb
+setuptools
+requests
+fastapi
+uvicorn
+jinja2
+python-multipart
+vnstock

@@ -1,0 +1,414 @@
+/* SSI iBoard Style - Dark Theme */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: #0a0b0f;
+    color: #e0e0e0;
+    font-size: 13px;
+    overflow-x: hidden;
+}
+
+/* Top Navigation */
+.top-nav {
+    background: #151720;
+    border-bottom: 1px solid #252835;
+    padding: 0 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 56px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.nav-left {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+}
+
+.logo {
+    font-size: 18px;
+    font-weight: 700;
+    color: #10b981;
+    letter-spacing: -0.5px;
+}
+
+.nav-menu {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.nav-link {
+    padding: 0.5rem 1rem;
+    color: #9ca3af;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 4px;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.nav-link:hover {
+    background: #1f2937;
+    color: #e0e0e0;
+}
+
+.nav-link.active {
+    background: #10b981;
+    color: white;
+}
+
+.nav-right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.search-box {
+    position: relative;
+}
+
+.search-box i {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6b7280;
+    font-size: 12px;
+}
+
+.search-box input {
+    padding: 0.5rem 0.75rem 0.5rem 2rem;
+    background: #1f2937;
+    border: 1px solid #374151;
+    border-radius: 4px;
+    color: #e0e0e0;
+    font-size: 13px;
+    width: 200px;
+    transition: all 0.2s;
+}
+
+.search-box input:focus {
+    outline: none;
+    border-color: #10b981;
+    background: #252835;
+}
+
+.btn-order {
+    padding: 0.5rem 1.5rem;
+    background: #10b981;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-order:hover {
+    background: #059669;
+}
+
+/* Stats Bar */
+.stats-bar {
+    background: #151720;
+    border-bottom: 1px solid #252835;
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.stat-label {
+    color: #9ca3af;
+    font-size: 12px;
+}
+
+.stat-value {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.stat-change {
+    font-size: 12px;
+}
+
+.stat-count {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.stat-divider {
+    width: 1px;
+    height: 24px;
+    background: #374151;
+}
+
+/* Color Classes */
+.up, .gain, .ceiling {
+    color: #10b981 !important;
+}
+
+.down, .loss, .floor {
+    color: #ef4444 !important;
+}
+
+.ref, .reference {
+    color: #f59e0b !important;
+}
+
+.ceil-price {
+    color: #a855f7 !important;
+}
+
+.floor-price {
+    color: #06b6d4 !important;
+}
+
+/* Price Board */
+.price-board {
+    padding: 0;
+    overflow-x: auto;
+    height: calc(100vh - 120px);
+}
+
+.price-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #0a0b0f;
+    font-size: 12px;
+}
+
+.price-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: #151720;
+}
+
+.price-table th {
+    padding: 0.5rem 0.4rem;
+    text-align: center;
+    font-weight: 600;
+    font-size: 11px;
+    color: #9ca3af;
+    border: 1px solid #252835;
+    white-space: nowrap;
+}
+
+.th-symbol {
+    text-align: left;
+    padding-left: 0.75rem;
+    min-width: 60px;
+}
+
+.th-section-buy {
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+}
+
+.th-section-sell {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+}
+
+.th-section-foreign {
+    background: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+}
+
+.th-bid {
+    color: #10b981;
+}
+
+.th-ask {
+    color: #ef4444;
+}
+
+.th-match {
+    background: #1f2937;
+    color: #e0e0e0;
+}
+
+.th-change {
+    background: #1f2937;
+}
+
+.price-table tbody tr {
+    border-bottom: 1px solid #1a1b25;
+    transition: background 0.1s;
+}
+
+.price-table tbody tr:hover {
+    background: #151720;
+}
+
+.price-table td {
+    padding: 0.4rem 0.4rem;
+    text-align: center;
+    border-right: 1px solid #1a1b25;
+    font-size: 12px;
+}
+
+.td-symbol {
+    text-align: left;
+    padding-left: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.td-symbol:hover {
+    text-decoration: underline;
+}
+
+.td-ceil {
+    color: #a855f7;
+    font-weight: 600;
+}
+
+.td-floor {
+    color: #06b6d4;
+    font-weight: 600;
+}
+
+.td-ref {
+    color: #f59e0b;
+    font-weight: 600;
+}
+
+.td-bid {
+    background: rgba(16, 185, 129, 0.05);
+}
+
+.td-bid-price {
+    color: #10b981;
+    font-weight: 600;
+}
+
+.td-bid-vol {
+    color: #9ca3af;
+    font-size: 11px;
+}
+
+.td-ask {
+    background: rgba(239, 68, 68, 0.05);
+}
+
+.td-ask-price {
+    color: #ef4444;
+    font-weight: 600;
+}
+
+.td-ask-vol {
+    color: #9ca3af;
+    font-size: 11px;
+}
+
+.td-match-price {
+    font-weight: 700;
+    font-size: 13px;
+}
+
+.td-match-vol {
+    color: #9ca3af;
+    font-size: 11px;
+}
+
+.td-change {
+    font-weight: 600;
+}
+
+.td-percent {
+    font-weight: 600;
+    font-size: 11px;
+}
+
+.td-vol {
+    color: #9ca3af;
+    font-size: 11px;
+}
+
+.td-high {
+    color: #10b981;
+    font-weight: 500;
+}
+
+.td-low {
+    color: #ef4444;
+    font-weight: 500;
+}
+
+.td-foreign {
+    font-size: 11px;
+}
+
+.loading-cell {
+    padding: 3rem !important;
+    text-align: center !important;
+    color: #6b7280;
+}
+
+.loading-cell i {
+    margin-right: 0.5rem;
+}
+
+/* Number Formatting */
+.num {
+    font-variant-numeric: tabular-nums;
+    font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #151720;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #374151;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #4b5563;
+}
+
+/* Responsive */
+@media (max-width: 1280px) {
+    .price-table th,
+    .price-table td {
+        padding: 0.3rem 0.25rem;
+        font-size: 11px;
+    }
+}
+
+@media (max-width: 768px) {
+    .nav-menu {
+        overflow-x: auto;
+    }
+    
+    .stats-bar {
+        overflow-x: auto;
+        gap: 1rem;
+    }
+}

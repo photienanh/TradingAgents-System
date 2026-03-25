@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TradingAgents - AI Trading Platform</title>
+    <link rel="stylesheet" href="/static/css/styles.css?v=3">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <span class="logo-text">TradingAgents</span>
+            </div>
+        </div>
+        
+        <nav class="sidebar-nav">
+            <a href="#" class="nav-item active" data-section="home">
+                <span class="nav-icon">🏠</span>
+                <span class="nav-label">Home</span>
+            </a>
+            <a href="/market" class="nav-item" onclick="window.location.href='/market'; return false;">
+                <span class="nav-icon">📈</span>
+                <span class="nav-label">Market</span>
+            </a>
+            <a href="#" class="nav-item" data-section="new-analysis">
+                <span class="nav-icon">✨</span>
+                <span class="nav-label">New Analysis</span>
+            </a>
+            <a href="#" class="nav-item" data-section="sessions">
+                <span class="nav-icon">📋</span>
+                <span class="nav-label">Sessions</span>
+            </a>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="main-wrapper">
+        <!-- Top Bar -->
+        <div class="topbar">
+            <div class="topbar-left">
+                <button class="menu-toggle" id="menu-toggle">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <h1 class="page-title">AI Trading Platform</h1>
+            </div>
+            <div class="topbar-right">
+                <div class="status-indicator">
+                    <span class="status-dot"></span>
+                    <span class="status-text">System Online</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <main class="content">
+            <!-- Home Section -->
+            <section class="section active" id="home-section">
+                <div class="welcome-banner">
+                    <div class="welcome-content">
+                        <h2>Welcome to TradingAgents</h2>
+                        <p>Multi-Agent LLM Framework for Financial Analysis</p>
+                    </div>
+                    <div class="welcome-stats">
+                        <div class="stat-card">
+                            <div class="stat-icon">✅</div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="completed-analyses-count">0</div>
+                                <div class="stat-label">Total Analyses Completed</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="quick-actions">
+                    <h3>Quick Actions</h3>
+                    <div class="action-grid">
+                        <button class="action-card" onclick="switchSection('new-analysis')">
+                            <div class="action-icon">✨</div>
+                            <div class="action-title">Start New Analysis</div>
+                            <div class="action-desc">Analyze a stock with AI agents</div>
+                        </button>
+                        <button class="action-card" onclick="switchSection('sessions')">
+                            <div class="action-icon">📋</div>
+                            <div class="action-title">View Sessions</div>
+                            <div class="action-desc">Browse previous analyses</div>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- New Analysis Section -->
+            <!-- New Analysis Section -->
+            <section class="section" id="new-analysis-section">
+                <div class="section-header">
+                    <h2>📊 Create New Analysis</h2>
+                    <p>Configure your AI trading agents to analyze a stock</p>
+                </div>
+
+                <div class="glass-card" id="analysis-form-card">
+                    <form id="analysis-form">
+                        <div class="form-section">
+                            <h3>Basic Information</h3>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label for="ticker">
+                                        <span class="label-icon">📌</span>
+                                        Stock Ticker
+                                    </label>
+                                    <input type="text" id="ticker" name="ticker" placeholder="HPG, VNM, MBB..." required>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="analysis_date">
+                                        <span class="label-icon">📅</span>
+                                        Analysis Date
+                                    </label>
+                                    <input type="date" id="analysis_date" name="analysis_date">
+                                    <small>Leave empty for today</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-section">
+                            <h3>Analyst Team</h3>
+                            <div class="analysts-grid">
+                                <label class="analyst-card">
+                                    <input type="checkbox" name="analysts" value="market" checked>
+                                    <div class="analyst-content">
+                                        <div class="analyst-icon">📊</div>
+                                        <div class="analyst-name">Market Analyst</div>
+                                        <div class="analyst-desc">Technical indicators & price action</div>
+                                    </div>
+                                </label>
+                                <label class="analyst-card">
+                                    <input type="checkbox" name="analysts" value="social" checked>
+                                    <div class="analyst-content">
+                                        <div class="analyst-icon">💬</div>
+                                        <div class="analyst-name">Social Media</div>
+                                        <div class="analyst-desc">Sentiment & trends analysis</div>
+                                    </div>
+                                </label>
+                                <label class="analyst-card">
+                                    <input type="checkbox" name="analysts" value="news" checked>
+                                    <div class="analyst-content">
+                                        <div class="analyst-icon">📰</div>
+                                        <div class="analyst-name">News Analyst</div>
+                                        <div class="analyst-desc">Latest news & events</div>
+                                    </div>
+                                </label>
+                                <label class="analyst-card">
+                                    <input type="checkbox" name="analysts" value="fundamentals" checked>
+                                    <div class="analyst-content">
+                                        <div class="analyst-icon">📈</div>
+                                        <div class="analyst-name">Fundamentals</div>
+                                        <div class="analyst-desc">Financial metrics & ratios</div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-section">
+                            <h3>Advanced Settings</h3>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label for="research_depth">
+                                        <span class="label-icon">🔍</span>
+                                        Research Depth
+                                    </label>
+                                    <select id="research_depth" name="research_depth">
+                                        <option value="1" selected>⚡ Quick (1 round)</option>
+                                        <option value="3">🎯 Medium (3 rounds)</option>
+                                        <option value="5">🔬 Deep (5 rounds)</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="deep_think_llm">
+                                        <span class="label-icon">🧠</span>
+                                        Deep Think Model
+                                    </label>
+                                    <select id="deep_think_llm" name="deep_think_llm">
+                                        <option value="gpt-4o">GPT-4o</option>
+                                        <option value="gpt-4o-mini" selected>GPT-4o Mini</option>
+                                        <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                                        <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="quick_think_llm">
+                                        <span class="label-icon">⚡</span>
+                                        Quick Think Model
+                                    </label>
+                                    <select id="quick_think_llm" name="quick_think_llm">
+                                        <option value="gpt-4o">GPT-4o</option>
+                                        <option value="gpt-4o-mini" selected>GPT-4o Mini</option>
+                                        <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                                        <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <span class="btn-text">🚀 Start Analysis</span>
+                                <span class="spinner hidden"></span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Analysis Progress (Hidden by default) -->
+                <div class="glass-card hidden" id="analysis-progress-card">
+                    <div class="progress-header">
+                        <h3>📈 Analysis in Progress</h3>
+                        <div class="session-meta">
+                            <span class="meta-item">
+                                <strong>Session:</strong> <span id="session-id"></span>
+                            </span>
+                            <span class="meta-item">
+                                <strong>Ticker:</strong> <span id="current-ticker"></span>
+                            </span>
+                            <span id="current-status" class="status-badge"></span>
+                        </div>
+                    </div>
+
+                    <!-- Agents Status -->
+                    <div class="agents-status">
+                        <h4>🤖 Agent Status</h4>
+                        <div id="agent-status" class="agent-grid"></div>
+                    </div>
+
+                    <!-- Tabs for Reports -->
+                    <div class="tabs">
+                        <button class="tab-btn active" data-tab="current">Phan Tich Hien Tai</button>
+                        <button class="tab-btn" data-tab="final">Bao Cao Tong Hop</button>
+                        <button class="tab-btn" data-tab="decision">Quyet Dinh</button>
+                    </div>
+
+                    <div class="tab-content">
+                        <div class="tab-pane active" id="tab-current">
+                            <div id="current-report" class="report-content">
+                                Waiting for analysis to start...
+                            </div>
+                        </div>
+                        <div class="tab-pane" id="tab-final">
+                            <div id="final-report" class="report-content"></div>
+                        </div>
+                        <div class="tab-pane" id="tab-decision">
+                            <div id="final-decision" class="decision-content"></div>
+                        </div>
+                    </div>
+
+                    <button id="new-analysis-btn" class="btn btn-secondary hidden">
+                        Start New Analysis
+                    </button>
+                </div>
+            </section>
+
+            <!-- Sessions Section -->
+            <section class="section" id="sessions-section">
+                <div class="section-header">
+                    <h2>📋 Previous Sessions</h2>
+                    <p>Browse and review your analysis history</p>
+                </div>
+
+                <div class="glass-card">
+                    <div id="sessions-list" class="sessions-container">
+                        <p class="loading-text">Loading sessions...</p>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <script src="/static/js/app.js?v=3"></script>
+    <script>
+        // Section switching
+        function switchSection(sectionName) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            
+            document.getElementById(sectionName + '-section').classList.add('active');
+            document.querySelector(`[data-section="${sectionName}"]`).classList.add('active');
+        }
+
+        // Sidebar toggle
+        document.getElementById('menu-toggle').addEventListener('click', function() {
+            document.querySelector('.sidebar').classList.toggle('active');
+        });
+
+        // Nav items
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', function(e) {
+                e.preventDefault();
+                const section = this.dataset.section;
+                switchSection(section);
+            });
+        });
+
+        // Tabs
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const tab = this.dataset.tab;
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+                
+                this.classList.add('active');
+                document.getElementById('tab-' + tab).classList.add('active');
+            });
+        });
+
+        // Initialize - show home by default
+        window.addEventListener('DOMContentLoaded', function() {
+            switchSection('home');
+        });
+    </script>
+</body>
+</html>
