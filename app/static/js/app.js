@@ -1,11 +1,14 @@
 let currentSessionId = null;
 let statusCheckInterval = null;
+let isReviewingHistoricalSession = false;
+let activePollingSessionId = null;
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', () => {
     loadSessions();
     setupFormHandlers();
     setupSidebarToggle();
+    setupSessionReviewModalHandlers();
 });
 
 function sanitizeReportText(text) {
@@ -17,6 +20,15 @@ function sanitizeReportText(text) {
             return normalized !== 'portfolio management decision' && normalized !== 'portfolio manager decision';
         })
         .join('\n');
+}
+
+function safeStringify(value) {
+    try {
+        return JSON.stringify(value, null, 2);
+    } catch (error) {
+        console.warn('Unable to stringify value:', error);
+        return String(value);
+    }
 }
 
 // Setup sidebar toggle
@@ -46,10 +58,129 @@ function setupFormHandlers() {
     if (newAnalysisBtn) {
         newAnalysisBtn.addEventListener('click', startNewAnalysis);
     }
+
+    const stopAnalysisBtn = document.getElementById('stop-analysis-btn');
+    if (stopAnalysisBtn) {
+        stopAnalysisBtn.addEventListener('click', cancelCurrentAnalysis);
+    }
+}
+
+function setupSessionReviewModalHandlers() {
+    const closeBtn = document.getElementById('close-session-review-btn');
+    const backdrop = document.getElementById('session-review-backdrop');
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeSessionReviewModal);
+    }
+    if (backdrop) {
+        backdrop.addEventListener('click', closeSessionReviewModal);
+    }
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            closeSessionReviewModal();
+        }
+    });
+}
+
+function openSessionReviewModal() {
+    const modal = document.getElementById('session-review-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeSessionReviewModal() {
+    const modal = document.getElementById('session-review-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    document.body.style.overflow = '';
+}
+
+function clearStatusPolling() {
+    if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+        statusCheckInterval = null;
+    }
+}
+
+function clearAnalysisDisplay() {
+    const sessionIdEl = document.getElementById('session-id');
+    const tickerEl = document.getElementById('current-ticker');
+    const statusEl = document.getElementById('current-status');
+    const stepEl = document.getElementById('current-step');
+    const progressFill = document.getElementById('analysis-progress-fill');
+    const agentStatusEl = document.getElementById('agent-status');
+    const currentReportEl = document.getElementById('current-report');
+    const finalReportEl = document.getElementById('final-report');
+    const decisionEl = document.getElementById('final-decision');
+
+    if (sessionIdEl) sessionIdEl.textContent = '-';
+    if (tickerEl) tickerEl.textContent = '-';
+    if (statusEl) {
+        statusEl.textContent = '';
+        statusEl.className = 'status-badge';
+    }
+    if (stepEl) stepEl.textContent = 'Đang chờ bắt đầu phân tích...';
+    if (progressFill) progressFill.style.width = '0%';
+    if (agentStatusEl) agentStatusEl.innerHTML = '';
+    if (currentReportEl) currentReportEl.textContent = 'Waiting for analysis to start...';
+    if (finalReportEl) finalReportEl.textContent = '';
+    if (decisionEl) decisionEl.textContent = '';
+}
+
+function renderSessionReview(sessionId, data) {
+    const reviewModal = document.getElementById('session-review-modal');
+    if (!reviewModal) return;
+    openSessionReviewModal();
+
+    const reviewSessionId = document.getElementById('review-session-id');
+    const reviewTicker = document.getElementById('review-ticker');
+    const reviewStatus = document.getElementById('review-status');
+    const reviewCurrent = document.getElementById('review-current-report');
+    const reviewFinal = document.getElementById('review-final-report');
+    const reviewDecision = document.getElementById('review-final-decision');
+
+    const ticker = sessionId.split('_')[0] || '-';
+
+    if (reviewSessionId) reviewSessionId.textContent = sessionId;
+    if (reviewTicker) reviewTicker.textContent = ticker;
+    if (reviewStatus) {
+        reviewStatus.textContent = data.status || '-';
+        reviewStatus.className = `status-badge ${data.status || ''}`;
+    }
+
+    if (reviewCurrent) {
+        if (data.current_report) {
+            reviewCurrent.innerHTML = marked.parse(sanitizeReportText(data.current_report));
+        } else {
+            reviewCurrent.textContent = 'Không có báo cáo tạm thời.';
+        }
+    }
+
+    if (reviewFinal) {
+        if (data.final_report) {
+            reviewFinal.innerHTML = marked.parse(sanitizeReportText(data.final_report));
+        } else {
+            reviewFinal.textContent = 'Chưa có báo cáo tổng hợp.';
+        }
+    }
+
+    if (reviewDecision) {
+        if (data.decision) {
+            updateDecision(data.decision, 'review-final-decision');
+        } else {
+            reviewDecision.innerHTML = '<p>Chưa có quyết định.</p>';
+        }
+    }
 }
 
 // Start new analysis
 async function startAnalysis() {
+    isReviewingHistoricalSession = false;
+    clearStatusPolling();
+    activePollingSessionId = null;
+
     const form = document.getElementById('analysis-form');
     const formData = new FormData(form);
     const submitBtn = form.querySelector('button[type="submit"]');
@@ -119,6 +250,9 @@ async function startAnalysis() {
 
         const data = await response.json();
         currentSessionId = data.session_id;
+        activePollingSessionId = data.session_id;
+
+        switchSection('new-analysis');
 
         // Show progress card and hide form
         const formCard = document.getElementById('analysis-form-card');
@@ -134,6 +268,11 @@ async function startAnalysis() {
         
         formCard.classList.add('hidden');
         progressCard.classList.remove('hidden');
+        const stopBtn = document.getElementById('stop-analysis-btn');
+        if (stopBtn) {
+            stopBtn.classList.remove('hidden');
+            stopBtn.disabled = false;
+        }
 
         // Update session info
         sessionIdEl.textContent = currentSessionId;
@@ -154,8 +293,10 @@ async function startAnalysis() {
 // Start polling for analysis status
 function startStatusPolling() {
     // Clear any existing interval
-    if (statusCheckInterval) {
-        clearInterval(statusCheckInterval);
+    clearStatusPolling();
+
+    if (!activePollingSessionId || isReviewingHistoricalSession) {
+        return;
     }
 
     // Check immediately
@@ -167,10 +308,10 @@ function startStatusPolling() {
 
 // Check analysis status
 async function checkAnalysisStatus() {
-    if (!currentSessionId) return;
+    if (!activePollingSessionId || isReviewingHistoricalSession) return;
 
     try {
-        const response = await fetch(`/api/status/${currentSessionId}`);
+        const response = await fetch(`/api/status/${activePollingSessionId}`);
         if (!response.ok) {
             throw new Error('Failed to fetch status');
         }
@@ -179,9 +320,10 @@ async function checkAnalysisStatus() {
         updateProgressUI(data);
 
         // Stop polling if analysis is completed or errored
-        if (data.status === 'completed' || data.status === 'error') {
+        if (data.status === 'completed' || data.status === 'error' || data.status === 'cancelled') {
             clearInterval(statusCheckInterval);
             statusCheckInterval = null;
+            activePollingSessionId = null;
             onAnalysisComplete(data);
         }
 
@@ -196,6 +338,34 @@ function updateProgressUI(data) {
     const statusBadge = document.getElementById('current-status');
     statusBadge.textContent = data.status;
     statusBadge.className = `status-badge ${data.status}`;
+
+    const stepEl = document.getElementById('current-step');
+    const progressFill = document.getElementById('analysis-progress-fill');
+    const fallbackStep = data.status === 'completed'
+        ? '✅ Hoàn thành phân tích'
+        : data.status === 'cancelled'
+            ? '🛑 Đã hủy phân tích theo yêu cầu'
+            : data.status === 'error'
+                ? '❌ Phân tích thất bại'
+                : 'Đang xử lý...';
+    const currentStep = data.current_step || fallbackStep;
+    const progressPercent = Number.isFinite(data.progress_percent)
+        ? Math.max(0, Math.min(100, data.progress_percent))
+        : (data.status === 'completed' ? 100 : 0);
+
+    if (stepEl) {
+        stepEl.textContent = `${currentStep} (${progressPercent}%)`;
+    }
+    if (progressFill) {
+        progressFill.style.width = `${progressPercent}%`;
+    }
+
+    const stopBtn = document.getElementById('stop-analysis-btn');
+    if (stopBtn) {
+        const canStop = data.status === 'running' || data.status === 'initializing';
+        stopBtn.classList.toggle('hidden', !canStop);
+        stopBtn.disabled = !canStop;
+    }
 
     // Show error if present
     if (data.status === 'error' && data.error) {
@@ -244,8 +414,36 @@ function updateAgentStatus(agentStatus) {
     }
 
     container.innerHTML = '';
-    
+
+    const preferredOrder = [
+        'Market Analyst',
+        'Social Analyst',
+        'News Analyst',
+        'Fundamentals Analyst',
+        'Bull Researcher',
+        'Bear Researcher',
+        'Research Manager',
+        'Trader',
+        'AlphaGPT Analyst',
+        'Risky Analyst',
+        'Safe Analyst',
+        'Neutral Analyst',
+        'Portfolio Manager'
+    ];
+
+    const orderedEntries = [];
+    for (const agent of preferredOrder) {
+        if (Object.prototype.hasOwnProperty.call(agentStatus, agent)) {
+            orderedEntries.push([agent, agentStatus[agent]]);
+        }
+    }
     for (const [agent, status] of Object.entries(agentStatus)) {
+        if (!preferredOrder.includes(agent)) {
+            orderedEntries.push([agent, status]);
+        }
+    }
+
+    for (const [agent, status] of orderedEntries) {
         const agentDiv = document.createElement('div');
         agentDiv.className = `agent-item ${status}`;
         agentDiv.innerHTML = `
@@ -261,25 +459,22 @@ function getStatusIcon(status) {
     const icons = {
         'pending': '⏳',
         'in_progress': '⚙️',
-        'completed': '✅'
+        'completed': '✅',
+        'not_selected': '⏭️'
     };
     return icons[status] || '⏳';
 }
 
-// Update decision display
-function updateDecision(decision) {
-    const decisionDiv = document.getElementById('final-decision');
-    if (!decisionDiv) return;
-    
+function buildDecisionHtml(decision) {
     let html = '';
-    
+
     // Check if decision is a string or object
     if (typeof decision === 'string') {
         // Extract decision type (BUY, SELL, HOLD)
         const decisionUpper = decision.toUpperCase();
         let decisionType = 'HOLD';
         let decisionClass = 'hold';
-        
+
         if (decisionUpper.includes('BUY')) {
             decisionType = 'BUY';
             decisionClass = 'buy';
@@ -287,7 +482,7 @@ function updateDecision(decision) {
             decisionType = 'SELL';
             decisionClass = 'sell';
         }
-        
+
         html = `
             <div class="decision-highlight decision-${decisionClass}">
                 <div class="decision-icon">${decisionClass === 'buy' ? '📈' : decisionClass === 'sell' ? '📉' : '⏸️'}</div>
@@ -301,16 +496,16 @@ function updateDecision(decision) {
         // Extract main decision from object
         let mainDecision = 'HOLD';
         let decisionClass = 'hold';
-        
-        const decisionStr = JSON.stringify(decision).toUpperCase();
-        if (decisionStr.includes('BUY')) {
+
+        const normalizedDecision = safeStringify(decision).toUpperCase();
+        if (normalizedDecision.includes('BUY')) {
             mainDecision = 'BUY';
             decisionClass = 'buy';
-        } else if (decisionStr.includes('SELL')) {
+        } else if (normalizedDecision.includes('SELL')) {
             mainDecision = 'SELL';
             decisionClass = 'sell';
         }
-        
+
         html = `
             <div class="decision-highlight decision-${decisionClass}">
                 <div class="decision-icon">${decisionClass === 'buy' ? '📈' : decisionClass === 'sell' ? '📉' : '⏸️'}</div>
@@ -320,7 +515,7 @@ function updateDecision(decision) {
             </div>
             <div class="decision-details">
         `;
-        
+
         // Object decision with details
         for (const [key, value] of Object.entries(decision)) {
             html += `
@@ -329,11 +524,20 @@ function updateDecision(decision) {
                 </div>
             `;
         }
-        
+
         html += '</div>';
+    } else {
+        html = '<p>Chưa có quyết định.</p>';
     }
-    
-    decisionDiv.innerHTML = html;
+
+    return html;
+}
+
+function updateDecision(decision, targetId = 'final-decision') {
+    const decisionDiv = document.getElementById(targetId);
+    if (!decisionDiv) return;
+
+    decisionDiv.innerHTML = buildDecisionHtml(decision);
 }
 
 // Format decision key
@@ -346,13 +550,15 @@ function formatKey(key) {
 // Format decision value
 function formatValue(value) {
     if (typeof value === 'object' && value !== null) {
-        return JSON.stringify(value, null, 2);
+        return safeStringify(value);
     }
     return value;
 }
 
 // Handle analysis completion
 function onAnalysisComplete(data) {
+    activePollingSessionId = null;
+
     // Show "Start New Analysis" button
     document.getElementById('new-analysis-btn').classList.remove('hidden');
     
@@ -363,7 +569,10 @@ function onAnalysisComplete(data) {
 // Start new analysis
 function startNewAnalysis() {
     // Clear current session
+    clearStatusPolling();
     currentSessionId = null;
+    isReviewingHistoricalSession = false;
+    activePollingSessionId = null;
     
     // Reset form
     document.getElementById('analysis-form').reset();
@@ -371,6 +580,11 @@ function startNewAnalysis() {
     // Hide progress card and button
     document.getElementById('analysis-progress-card').classList.add('hidden');
     document.getElementById('new-analysis-btn').classList.add('hidden');
+    const stopBtn = document.getElementById('stop-analysis-btn');
+    if (stopBtn) {
+        stopBtn.classList.add('hidden');
+        stopBtn.disabled = false;
+    }
     
     // Show form
     document.getElementById('analysis-form-card').classList.remove('hidden');
@@ -382,6 +596,34 @@ function startNewAnalysis() {
     submitBtn.disabled = false;
     btnText.textContent = '🚀 Start Analysis';
     spinner.classList.add('hidden');
+
+    clearAnalysisDisplay();
+}
+
+async function cancelCurrentAnalysis() {
+    if (!activePollingSessionId) return;
+    const confirmed = confirm('Hủy phiên phân tích hiện tại? Hành động này sẽ dừng hẳn và không thể tiếp tục.');
+    if (!confirmed) return;
+
+    try {
+        const response = await fetch(`/api/sessions/${activePollingSessionId}/cancel`, {
+            method: 'POST'
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to request cancellation');
+        }
+
+        const stopBtn = document.getElementById('stop-analysis-btn');
+        if (stopBtn) {
+            stopBtn.disabled = true;
+        }
+
+        await checkAnalysisStatus();
+    } catch (error) {
+        console.error('Error cancelling analysis:', error);
+        alert('Không thể hủy phiên phân tích. Vui lòng thử lại.');
+    }
 }
 
 // Load previous sessions
@@ -458,12 +700,13 @@ function formatDateTime(dateString) {
 
 // View session
 async function viewSession(sessionId) {
+    clearStatusPolling();
+    isReviewingHistoricalSession = true;
+    activePollingSessionId = null;
     currentSessionId = sessionId;
-    
-    // Switch to new-analysis section and show progress card
-    switchSection('new-analysis');
-    document.getElementById('analysis-form-card').classList.add('hidden');
-    document.getElementById('analysis-progress-card').classList.remove('hidden');
+
+    // Keep user in Sessions section when reviewing an old session.
+    switchSection('sessions');
     
     // Fetch and display session data
     try {
@@ -474,16 +717,7 @@ async function viewSession(sessionId) {
 
         const data = await response.json();
         
-        // Update session info in progress card
-        document.getElementById('session-id').textContent = sessionId;
-        const ticker = sessionId.split('_')[0];
-        document.getElementById('current-ticker').textContent = ticker;
-        
-        updateProgressUI(data);
-
-        if (data.status === 'completed') {
-            document.getElementById('new-analysis-btn').classList.remove('hidden');
-        }
+        renderSessionReview(sessionId, data);
 
     } catch (error) {
         console.error('Error viewing session:', error);
@@ -504,6 +738,12 @@ async function deleteSession(sessionId) {
 
         if (!response.ok) {
             throw new Error('Failed to delete session');
+        }
+
+        if (isReviewingHistoricalSession && currentSessionId === sessionId) {
+            currentSessionId = null;
+            isReviewingHistoricalSession = false;
+            closeSessionReviewModal();
         }
 
         // Reload sessions

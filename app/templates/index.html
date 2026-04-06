@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TradingAgents - AI Trading Platform</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=3">
+    <link rel="stylesheet" href="/static/css/styles.css">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
@@ -229,6 +229,10 @@
                             </span>
                             <span id="current-status" class="status-badge"></span>
                         </div>
+                        <div class="step-status" id="current-step">Đang chờ bắt đầu phân tích...</div>
+                        <div class="progress-track" aria-label="Analysis progress">
+                            <div class="progress-fill" id="analysis-progress-fill" style="width: 0%;"></div>
+                        </div>
                     </div>
 
                     <!-- Agents Status -->
@@ -239,9 +243,9 @@
 
                     <!-- Tabs for Reports -->
                     <div class="tabs">
-                        <button class="tab-btn active" data-tab="current">Phan Tich Hien Tai</button>
-                        <button class="tab-btn" data-tab="final">Bao Cao Tong Hop</button>
-                        <button class="tab-btn" data-tab="decision">Quyet Dinh</button>
+                        <button class="tab-btn active" data-tab="current">Phân tích hiện tại</button>
+                        <button class="tab-btn" data-tab="final">Báo cáo tổng hợp</button>
+                        <button class="tab-btn" data-tab="decision">Quyết định</button>
                     </div>
 
                     <div class="tab-content">
@@ -261,6 +265,9 @@
                     <button id="new-analysis-btn" class="btn btn-secondary hidden">
                         Start New Analysis
                     </button>
+                    <button id="stop-analysis-btn" class="btn btn-danger hidden">
+                        Hủy phân tích
+                    </button>
                 </div>
             </section>
 
@@ -276,12 +283,53 @@
                         <p class="loading-text">Loading sessions...</p>
                     </div>
                 </div>
+
             </section>
 
         </main>
     </div>
 
-    <script src="/static/js/app.js?v=3"></script>
+    <div id="session-review-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="session-review-title">
+        <div id="session-review-backdrop" class="modal-backdrop"></div>
+        <div class="modal-panel glass-card">
+            <div class="modal-header">
+                <h3 id="session-review-title">🔎 Session Review</h3>
+                <button id="close-session-review-btn" class="modal-close" type="button" aria-label="Close session review">✕</button>
+            </div>
+
+            <div class="progress-header">
+                <div class="session-meta">
+                    <span class="meta-item">
+                        <strong>Session:</strong> <span id="review-session-id"></span>
+                    </span>
+                    <span class="meta-item">
+                        <strong>Ticker:</strong> <span id="review-ticker"></span>
+                    </span>
+                    <span id="review-status" class="status-badge"></span>
+                </div>
+            </div>
+
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="review-current">Phân tích hiện tại</button>
+                <button class="tab-btn" data-tab="review-final">Báo cáo tổng hợp</button>
+                <button class="tab-btn" data-tab="review-decision">Quyết định</button>
+            </div>
+
+            <div class="tab-content">
+                <div class="tab-pane active" id="tab-review-current">
+                    <div id="review-current-report" class="report-content"></div>
+                </div>
+                <div class="tab-pane" id="tab-review-final">
+                    <div id="review-final-report" class="report-content"></div>
+                </div>
+                <div class="tab-pane" id="tab-review-decision">
+                    <div id="review-final-decision" class="decision-content"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
     <script>
         // Section switching
         function switchSection(sectionName) {
@@ -302,6 +350,9 @@
             item.addEventListener('click', function(e) {
                 e.preventDefault();
                 const section = this.dataset.section;
+                if (!section) {
+                    return;
+                }
                 switchSection(section);
             });
         });

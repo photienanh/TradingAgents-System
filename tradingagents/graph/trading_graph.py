@@ -1,8 +1,9 @@
 import os
 from pathlib import Path
 import json
+import asyncio
 from datetime import date
-from typing import Dict, Any, Tuple, List, Optional, cast
+from typing import Dict, Any, Tuple, List, Optional, cast, Callable
 
 from langchain_openai import ChatOpenAI
 
@@ -87,7 +88,10 @@ class TradingAgentsGraph:
         self.tool_nodes = self._create_tool_nodes()
 
         # Initialize components
-        self.conditional_logic = ConditionalLogic()
+        self.conditional_logic = ConditionalLogic(
+            max_debate_rounds=int(self.config.get("max_debate_rounds", 1) or 1),
+            max_risk_discuss_rounds=int(self.config.get("max_risk_discuss_rounds", 1) or 1),
+        )
         self.graph_setup = GraphSetup(
             self.quick_thinking_llm,
             self.deep_thinking_llm,
@@ -148,7 +152,13 @@ class TradingAgentsGraph:
             ),
         }
 
-    def propagate(self, company_name, trade_date, alphagpt_signal: Optional[Dict[str, Any]] = None):
+    def propagate(
+        self,
+        company_name,
+        trade_date,
+        alphagpt_signal: Optional[Dict[str, Any]] = None,
+        progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+    ):
         """Run the trading agents graph for a company on a specific date."""
 
         self.ticker = company_name
@@ -159,17 +169,30 @@ class TradingAgentsGraph:
         )
         args = self.propagator.get_graph_args()
 
-        if self.debug:
-            # Debug mode with tracing
-            trace = []
+        should_stream = self.debug or progress_callback is not None
+        if should_stream:
+            final_state = None
             for chunk in self.graph.stream(cast(AgentState, init_agent_state), **args):
-                if len(chunk["messages"]) == 0:
-                    pass
-                else:
-                    chunk["messages"][-1].pretty_print()
-                    trace.append(chunk)
+                final_state = chunk
 
-            final_state = trace[-1]
+                if progress_callback is not None:
+                    try:
+                        progress_callback(chunk)
+                    except Exception as exc:
+                        if isinstance(exc, asyncio.CancelledError):
+                            raise
+                        pass
+
+                if self.debug:
+                    messages = chunk.get("messages", [])
+                    if len(messages) > 0:
+                        try:
+                            messages[-1].pretty_print()
+                        except Exception:
+                            pass
+
+            if final_state is None:
+                raise RuntimeError("Graph stream returned no state")
         else:
             final_state = self.graph.invoke(cast(AgentState, init_agent_state), **args)
 

@@ -11,19 +11,15 @@ import asyncio
 from collections import deque
 import csv
 import os
-import json
+import time
 from threading import Lock
-
-try:
-    from vnstock import Listing, Trading
-    VNSTOCK_AVAILABLE = True
-except ImportError:
-    VNSTOCK_AVAILABLE = False
-    print("Warning: vnstock not available. Install with: pip install vnstock")
 
 from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
 from dotenv import load_dotenv
+from app.routes.market import router as market_router
+from app.services.session_serialization import build_persistable_session
+from app.storage.session_store import SQLiteSessionStore
 
 # Load environment variables
 load_dotenv()
@@ -43,6 +39,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(market_router)
+
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
@@ -54,130 +52,27 @@ analysis_sessions: Dict[str, Dict[str, Any]] = {}
 analysis_sessions_lock = Lock()
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SESSION_STORE_PATH = PROJECT_ROOT / "app" / "data" / "sessions.json"
+SESSION_DB_PATH = PROJECT_ROOT / "app" / "data" / "sessions.db"
+LEGACY_SESSION_JSON_PATH = PROJECT_ROOT / "app" / "data" / "sessions.json"
 DEFAULT_ALPHAGPT_SIGNAL_CSV = (
     PROJECT_ROOT.parent / "AlphaGPT" / "alpha-gpt" / "outputs" / "signal_scores_auto_best.csv"
 )
-
-# Cache for stock market data (separate cache for each group)
-stock_data_cache = {
-    "cache_duration": 60,  # Cache for 60 seconds
-    "all": {"data": None, "timestamp": None},
-    "VN30": {"data": None, "timestamp": None},
-    "HNX30": {"data": None, "timestamp": None},
-    "HOSE": {"data": None, "timestamp": None},
-    "HNX": {"data": None, "timestamp": None},
-    "UPCOM": {"data": None, "timestamp": None}
-}
-
-
-def _ensure_session_store_dir() -> None:
-    SESSION_STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-
-def _extract_buffer_snapshot(message_buffer: Optional["MessageBuffer"]) -> Dict[str, Any]:
-    if not message_buffer:
-        return {}
-    return {
-        "current_agent": _to_jsonable(message_buffer.current_agent),
-        "agent_status": _to_jsonable(message_buffer.agent_status),
-        "current_report": _to_jsonable(message_buffer.current_report),
-        "final_report": _to_jsonable(message_buffer.final_report),
-        "messages": _to_jsonable(list(message_buffer.messages)),
-        "tool_calls": _to_jsonable(list(message_buffer.tool_calls)),
-    }
-
-
-def _to_jsonable(value: Any, depth: int = 0) -> Any:
-    if depth > 6:
-        return str(value)
-
-    if value is None or isinstance(value, (bool, int, float, str)):
-        return value
-
-    if isinstance(value, (datetime.date, datetime.datetime)):
-        return value.isoformat()
-
-    if isinstance(value, Path):
-        return str(value)
-
-    if isinstance(value, dict):
-        return {str(k): _to_jsonable(v, depth + 1) for k, v in value.items()}
-
-    if isinstance(value, (list, tuple, set, deque)):
-        return [_to_jsonable(v, depth + 1) for v in value]
-
-    if hasattr(value, "model_dump"):
-        try:
-            return _to_jsonable(value.model_dump(), depth + 1)
-        except Exception:
-            return str(value)
-
-    if hasattr(value, "content") and hasattr(value, "type"):
-        try:
-            return {
-                "_object": value.__class__.__name__,
-                "type": _to_jsonable(getattr(value, "type", None), depth + 1),
-                "content": _to_jsonable(getattr(value, "content", None), depth + 1),
-            }
-        except Exception:
-            return str(value)
-
-    if hasattr(value, "__dict__"):
-        try:
-            return {
-                "_object": value.__class__.__name__,
-                "data": _to_jsonable(vars(value), depth + 1),
-            }
-        except Exception:
-            return str(value)
-
-    return str(value)
-
-
-def _build_persistable_session(session_data: Dict[str, Any]) -> Dict[str, Any]:
-    persistable = {
-        "ticker": _to_jsonable(session_data.get("ticker")),
-        "analysis_date": _to_jsonable(session_data.get("analysis_date")),
-        "analysts": _to_jsonable(session_data.get("analysts")),
-        "alpha_signal": _to_jsonable(session_data.get("alpha_signal")),
-        "status": _to_jsonable(session_data.get("status")),
-        "created_at": _to_jsonable(session_data.get("created_at")),
-        "decision": _to_jsonable(session_data.get("decision")),
-        "decision_raw": _to_jsonable(session_data.get("decision_raw")),
-        "decision_fused": _to_jsonable(session_data.get("decision_fused")),
-        "decision_fusion_note": _to_jsonable(session_data.get("decision_fusion_note")),
-        "final_state": _to_jsonable(session_data.get("final_state")),
-        "error": _to_jsonable(session_data.get("error")),
-        "error_details": _to_jsonable(session_data.get("error_details")),
-    }
-    persistable.update(_extract_buffer_snapshot(session_data.get("message_buffer")))
-    return persistable
+session_store = SQLiteSessionStore(SESSION_DB_PATH)
 
 
 def _save_sessions_to_disk() -> None:
-    _ensure_session_store_dir()
     with analysis_sessions_lock:
         persistable_sessions = {
-            session_id: _build_persistable_session(session_data)
+            session_id: build_persistable_session(session_data)
             for session_id, session_data in analysis_sessions.items()
         }
-        payload = {
-            "saved_at": datetime.datetime.now().isoformat(),
-            "sessions": persistable_sessions,
-        }
-        with SESSION_STORE_PATH.open("w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False, indent=2)
+    session_store.save_all(persistable_sessions)
 
 
 def _load_sessions_from_disk() -> None:
-    if not SESSION_STORE_PATH.exists():
-        return
-
+    session_store.migrate_from_json_file(LEGACY_SESSION_JSON_PATH)
     try:
-        with SESSION_STORE_PATH.open("r", encoding="utf-8") as f:
-            payload = json.load(f)
-        sessions = payload.get("sessions", {})
+        sessions = session_store.load_all()
         for session_id, session_data in sessions.items():
             status = session_data.get("status")
             if status in {"initializing", "running"}:
@@ -185,7 +80,7 @@ def _load_sessions_from_disk() -> None:
                 session_data["error"] = "Session interrupted because server restarted"
             analysis_sessions[session_id] = session_data
     except Exception as exc:
-        print(f"Warning: unable to load sessions from disk: {exc}")
+        print(f"Warning: unable to load sessions from sqlite: {exc}")
 
 
 def _get_alphagpt_signal_csv_path() -> Path:
@@ -367,6 +262,123 @@ def _rebuild_agent_status_from_final_state(final_state: Any, session_status: str
     return status_map
 
 
+def _extract_tool_call_names(message: Any) -> List[str]:
+    names: List[str] = []
+    tool_calls = None
+
+    if isinstance(message, dict):
+        tool_calls = message.get("tool_calls")
+    else:
+        tool_calls = getattr(message, "tool_calls", None)
+
+    if not isinstance(tool_calls, list):
+        return names
+
+    for call in tool_calls:
+        if isinstance(call, dict):
+            name = call.get("name") or call.get("tool")
+        else:
+            name = getattr(call, "name", None) or getattr(call, "tool", None)
+        if isinstance(name, str) and name:
+            names.append(name)
+
+    return names
+
+
+def _to_positive_int(value: Any, default: int) -> int:
+    try:
+        parsed = int(value)
+        return parsed if parsed > 0 else default
+    except (TypeError, ValueError):
+        return default
+
+
+def _derive_realtime_step(
+    chunk: Dict[str, Any],
+    max_debate_rounds: int = 1,
+    max_risk_rounds: int = 1,
+) -> Optional[Tuple[str, int]]:
+    max_debate_rounds = _to_positive_int(max_debate_rounds, 1)
+    max_risk_rounds = _to_positive_int(max_risk_rounds, 1)
+
+    if chunk.get("final_trade_decision"):
+        return ("✅ Hoàn thành phán quyết cuối cùng", 100)
+
+    risk_state = chunk.get("risk_debate_state")
+    if isinstance(risk_state, dict):
+        latest_speaker = str(risk_state.get("latest_speaker", ""))
+        judge_decision = str(risk_state.get("judge_decision", ""))
+        if judge_decision or latest_speaker == "Judge":
+            return ("🧑‍⚖️ Risk Judge đang chốt phán quyết cuối", 99)
+
+        max_turns = max(1, 3 * max_risk_rounds)
+        turn_count = max(1, _to_positive_int(risk_state.get("count"), 1))
+        clamped_turn = min(turn_count, max_turns)
+        stage_percent = 92 + int((clamped_turn / max_turns) * 6)
+        risk_text_map: Dict[str, str] = {
+            "Risky": "⚠️ Đang tranh luận: Risky Analyst",
+            "Safe": "🛡️ Đang tranh luận: Safe Analyst",
+            "Neutral": "⚖️ Đang tranh luận: Neutral Analyst",
+        }
+        if latest_speaker in risk_text_map:
+            return (
+                f"{risk_text_map[latest_speaker]} (lượt {clamped_turn}/{max_turns})",
+                stage_percent,
+            )
+
+    if chunk.get("trader_investment_plan"):
+        return ("🧠 Trader đang ra kế hoạch giao dịch", 90)
+
+    if chunk.get("investment_plan"):
+        return ("🧑‍⚖️ Research Manager đã chốt phán quyết", 88)
+
+    invest_state = chunk.get("investment_debate_state")
+    if isinstance(invest_state, dict):
+        current_response = str(invest_state.get("current_response", ""))
+        judge_decision = str(invest_state.get("judge_decision", ""))
+        if judge_decision:
+            return ("🧑‍⚖️ Research Manager đang chốt phán quyết", 87)
+
+        max_turns = max(1, 2 * max_debate_rounds)
+        turn_count = max(1, _to_positive_int(invest_state.get("count"), 1))
+        clamped_turn = min(turn_count, max_turns)
+        stage_percent = 80 + int((clamped_turn / max_turns) * 6)
+        if current_response.startswith("Bull Analyst"):
+            return (f"⚔️ Đang tranh luận: Bull Analyst (lượt {clamped_turn}/{max_turns})", stage_percent)
+        if current_response.startswith("Bear Analyst"):
+            return (f"⚔️ Đang tranh luận: Bear Analyst (lượt {clamped_turn}/{max_turns})", stage_percent)
+
+    if chunk.get("fundamentals_report"):
+        return ("📈 Fundamentals Analyst đã hoàn thành", 76)
+    if chunk.get("news_report"):
+        return ("📰 News Analyst đã hoàn thành", 70)
+    if chunk.get("sentiment_report"):
+        return ("💬 Social Analyst đã hoàn thành", 64)
+    if chunk.get("market_report"):
+        return ("📊 Market Analyst đã hoàn thành", 58)
+
+    messages = chunk.get("messages")
+    if isinstance(messages, list) and messages:
+        tool_names = _extract_tool_call_names(messages[-1])
+        if tool_names:
+            tool = tool_names[0]
+            tool_step_map: Dict[str, Tuple[str, int]] = {
+                "get_stock_data": ("⏳ Đang crawl stock data", 15),
+                "get_indicators": ("⏳ Đang tính technical indicators", 22),
+                "get_news": ("⏳ Đang crawl tin tức và dữ liệu xã hội", 30),
+                "get_global_news": ("⏳ Đang tổng hợp tin tức vĩ mô", 38),
+                "get_fundamentals": ("⏳ Đang lấy dữ liệu fundamentals", 46),
+                "get_balance_sheet": ("⏳ Đang lấy bảng cân đối kế toán", 50),
+                "get_cashflow": ("⏳ Đang lấy báo cáo lưu chuyển tiền tệ", 52),
+                "get_income_statement": ("⏳ Đang lấy báo cáo kết quả kinh doanh", 54),
+                "get_insider_transactions": ("⏳ Đang lấy giao dịch nội bộ", 56),
+            }
+            if tool in tool_step_map:
+                return tool_step_map[tool]
+
+    return None
+
+
 class AnalysisRequest(BaseModel):
     ticker: str
     analysis_date: Optional[str] = None
@@ -389,6 +401,8 @@ class AnalysisResponse(BaseModel):
 class AnalysisStatus(BaseModel):
     session_id: str
     status: str
+    current_step: Optional[str] = None
+    progress_percent: Optional[int] = None
     current_agent: Optional[str] = None
     agent_status: Dict[str, str]
     current_report: Optional[str] = None
@@ -421,8 +435,8 @@ class MessageBuffer:
             "Trader": "pending",
             "AlphaGPT Analyst": "pending",
             "Risky Analyst": "pending",
-            "Neutral Analyst": "pending",
             "Safe Analyst": "pending",
+            "Neutral Analyst": "pending",
             "Portfolio Manager": "pending",
         }
         self.current_agent = None
@@ -531,11 +545,19 @@ async def run_trading_analysis(
     message_buffer = MessageBuffer()
     analysis_sessions[session_id]["message_buffer"] = message_buffer
     analysis_sessions[session_id]["status"] = "running"
+    analysis_sessions[session_id]["current_step"] = "Đang khởi tạo đồ thị phân tích"
+    analysis_sessions[session_id]["progress_percent"] = 10
+    analysis_sessions[session_id]["cancel_requested"] = False
     _save_sessions_to_disk()
     
     try:
+        if analysis_sessions[session_id].get("cancel_requested"):
+            raise asyncio.CancelledError("Analysis cancelled before start")
+
+        selected_analysts = list(analysts)
+
         # Initialize trading graph
-        graph = TradingAgentsGraph(debug=True, config=config, selected_analysts=analysts)
+        graph = TradingAgentsGraph(debug=True, config=config, selected_analysts=selected_analysts)
         
         # Mark all selected analysts as in progress
         analyst_map = {
@@ -544,12 +566,120 @@ async def run_trading_analysis(
             "news": "News Analyst",
             "fundamentals": "Fundamentals Analyst"
         }
-        for analyst_key in analysts:
+        for analyst_key in selected_analysts:
             if analyst_key in analyst_map:
                 message_buffer.update_agent_status(analyst_map[analyst_key], "in_progress")
+
+        for analyst_key, agent_name in analyst_map.items():
+            if analyst_key not in selected_analysts:
+                message_buffer.agent_status[agent_name] = "not_selected"
+
+        max_debate_rounds = _to_positive_int(config.get("max_debate_rounds"), 1)
+        max_risk_rounds = _to_positive_int(config.get("max_risk_discuss_rounds"), 1)
         
-        # Run propagate - this will return final_state and decision
-        final_state, decision = graph.propagate(ticker, analysis_date, alphagpt_signal=alpha_signal)
+        last_progress_persist = time.monotonic()
+
+        def _on_graph_progress(chunk: Dict[str, Any]) -> None:
+            nonlocal last_progress_persist
+
+            if analysis_sessions[session_id].get("cancel_requested"):
+                raise asyncio.CancelledError("Analysis cancelled by user")
+
+            progress_info = _derive_realtime_step(
+                chunk,
+                max_debate_rounds=max_debate_rounds,
+                max_risk_rounds=max_risk_rounds,
+            )
+            if progress_info is None:
+                return
+
+            step_text, step_percent = progress_info
+            analysis_sessions[session_id]["current_step"] = step_text
+            previous_percent = int(analysis_sessions[session_id].get("progress_percent") or 0)
+            analysis_sessions[session_id]["progress_percent"] = max(previous_percent, step_percent)
+
+            report_by_analyst = {
+                "market": "market_report",
+                "social": "sentiment_report",
+                "news": "news_report",
+                "fundamentals": "fundamentals_report",
+            }
+
+            first_incomplete_marked = False
+            for analyst_key in selected_analysts:
+                agent_name = analyst_map.get(analyst_key)
+                report_key = report_by_analyst.get(analyst_key)
+                if not agent_name or not report_key:
+                    continue
+
+                if chunk.get(report_key):
+                    message_buffer.update_agent_status(agent_name, "completed")
+                    continue
+
+                if not first_incomplete_marked:
+                    message_buffer.update_agent_status(agent_name, "in_progress")
+                    first_incomplete_marked = True
+                else:
+                    message_buffer.update_agent_status(agent_name, "pending")
+
+            investment_state = chunk.get("investment_debate_state")
+            if isinstance(investment_state, dict):
+                current_response = str(investment_state.get("current_response", ""))
+                judge_decision = str(investment_state.get("judge_decision", ""))
+                if current_response.startswith("Bull Analyst"):
+                    message_buffer.update_agent_status("Bull Researcher", "in_progress")
+                elif current_response.startswith("Bear Analyst"):
+                    message_buffer.update_agent_status("Bull Researcher", "completed")
+                    message_buffer.update_agent_status("Bear Researcher", "in_progress")
+                if judge_decision:
+                    message_buffer.update_agent_status("Bull Researcher", "completed")
+                    message_buffer.update_agent_status("Bear Researcher", "completed")
+                    message_buffer.update_agent_status("Research Manager", "completed")
+
+            if chunk.get("investment_plan") and message_buffer.agent_status.get("Research Manager") != "completed":
+                message_buffer.update_agent_status("Research Manager", "in_progress")
+
+            if chunk.get("trader_investment_plan"):
+                message_buffer.update_agent_status("Trader", "completed")
+            elif chunk.get("investment_plan"):
+                message_buffer.update_agent_status("Trader", "in_progress")
+
+            risk_state = chunk.get("risk_debate_state")
+            if isinstance(risk_state, dict):
+                latest_speaker = str(risk_state.get("latest_speaker", ""))
+                if latest_speaker == "Risky":
+                    message_buffer.update_agent_status("AlphaGPT Analyst", "completed")
+                    message_buffer.update_agent_status("Risky Analyst", "in_progress")
+                elif latest_speaker == "Safe":
+                    message_buffer.update_agent_status("Risky Analyst", "completed")
+                    message_buffer.update_agent_status("Safe Analyst", "in_progress")
+                elif latest_speaker == "Neutral":
+                    message_buffer.update_agent_status("Safe Analyst", "completed")
+                    message_buffer.update_agent_status("Neutral Analyst", "in_progress")
+                elif latest_speaker == "Judge":
+                    message_buffer.update_agent_status("Risky Analyst", "completed")
+                    message_buffer.update_agent_status("Safe Analyst", "completed")
+                    message_buffer.update_agent_status("Neutral Analyst", "completed")
+                    message_buffer.update_agent_status("Portfolio Manager", "in_progress")
+
+            if chunk.get("final_trade_decision"):
+                message_buffer.update_agent_status("Portfolio Manager", "completed")
+
+            now = time.monotonic()
+            if now - last_progress_persist >= 1.0:
+                _save_sessions_to_disk()
+                last_progress_persist = now
+
+        def _run_graph() -> Tuple[Dict[str, Any], Any]:
+            return graph.propagate(
+                ticker,
+                analysis_date,
+                alphagpt_signal=alpha_signal,
+                progress_callback=_on_graph_progress,
+            )
+
+        # Run graph in a worker thread to keep API status polling responsive.
+        final_state, decision = await asyncio.to_thread(_run_graph)
 
         alpha_note = "AlphaGPT signal routed through AlphaGPT Analyst node in decision layer"
         if isinstance(alpha_signal, dict) and not alpha_signal.get("enabled", False):
@@ -599,12 +729,17 @@ async def run_trading_analysis(
             )
             message_buffer.update_agent_status("Portfolio Manager", "completed")
         
-        # Update all agent statuses to completed
-        for agent in message_buffer.agent_status:
-            message_buffer.update_agent_status(agent, "completed")
+        # Finalize remaining active agents; keep unselected analysts untouched.
+        for agent, status in list(message_buffer.agent_status.items()):
+            if status == "not_selected":
+                continue
+            if status in {"pending", "in_progress"}:
+                message_buffer.update_agent_status(agent, "completed")
 
         # Store final results
         analysis_sessions[session_id]["status"] = "completed"
+        analysis_sessions[session_id]["current_step"] = "✅ Hoàn thành phân tích"
+        analysis_sessions[session_id]["progress_percent"] = 100
         analysis_sessions[session_id]["decision"] = decision
         analysis_sessions[session_id]["decision_raw"] = decision
         analysis_sessions[session_id]["decision_fused"] = _extract_decision_label(decision)
@@ -612,11 +747,23 @@ async def run_trading_analysis(
         analysis_sessions[session_id]["alpha_signal"] = alpha_signal
         analysis_sessions[session_id]["final_state"] = final_state
         _save_sessions_to_disk()
+
+    except asyncio.CancelledError as e:
+        analysis_sessions[session_id]["status"] = "cancelled"
+        analysis_sessions[session_id]["current_step"] = "🛑 Đã hủy phân tích theo yêu cầu"
+        analysis_sessions[session_id]["error"] = str(e)
+        analysis_sessions[session_id]["error_details"] = None
+        if analysis_sessions[session_id].get("progress_percent") is None:
+            analysis_sessions[session_id]["progress_percent"] = 0
+        _save_sessions_to_disk()
         
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
         analysis_sessions[session_id]["status"] = "error"
+        analysis_sessions[session_id]["current_step"] = "❌ Phân tích thất bại"
+        if analysis_sessions[session_id].get("progress_percent") is None:
+            analysis_sessions[session_id]["progress_percent"] = 0
         analysis_sessions[session_id]["error"] = str(e)
         analysis_sessions[session_id]["error_details"] = error_details
         print(f"Error in analysis {session_id}: {error_details}")  # Log to console
@@ -638,208 +785,6 @@ async def home(request: Request):
 async def market_page(request: Request):
     """Stock market page"""
     return templates.TemplateResponse("market_new.html", {"request": request})
-
-
-@app.get("/api/market/data")
-async def get_market_data(group: Optional[str] = None):
-    """Get stock market data from vnstock
-    Args:
-        group: Optional filter by group (VN30, HNX30, HOSE, HNX, UPCOM)
-    """
-    if not VNSTOCK_AVAILABLE:
-        return JSONResponse(
-            status_code=503,
-            content={"error": "vnstock is not available. Please install it with: pip install vnstock"}
-        )
-    
-    try:
-        # Check cache for this specific group
-        cache_key = group or "all"
-        now = datetime.datetime.now()
-        
-        if cache_key in stock_data_cache:
-            cached = stock_data_cache[cache_key]
-            if cached["data"] is not None and cached["timestamp"] is not None:
-                time_diff = (now - cached["timestamp"]).total_seconds()
-                if time_diff < stock_data_cache["cache_duration"]:
-                    return {"data": cached["data"], "cached": True, "group": cache_key}
-        
-        # Fetch fresh data
-        listing = Listing()
-        trading = Trading()
-        
-        if group:
-            # Get symbols by group
-            if group.upper() == 'HOSE':
-                symbols_df = listing.symbols_by_exchange('HOSE')
-                symbols = list(symbols_df["symbol"]) if hasattr(symbols_df, 'columns') else list(symbols_df)
-            elif group.upper() == 'HNX':
-                symbols_df = listing.symbols_by_exchange('HNX')
-                symbols = list(symbols_df["symbol"]) if hasattr(symbols_df, 'columns') else list(symbols_df)
-            elif group.upper() == 'UPCOM':
-                symbols_df = listing.symbols_by_exchange('UPCOM')
-                symbols = list(symbols_df["symbol"]) if hasattr(symbols_df, 'columns') else list(symbols_df)
-            elif group.upper() == 'VN30':
-                symbols_series = listing.symbols_by_group('VN30')
-                symbols = list(symbols_series)  # Series can be converted directly to list
-            elif group.upper() == 'HNX30':
-                symbols_series = listing.symbols_by_group('HNX30')
-                symbols = list(symbols_series)
-            else:
-                symbols = list(listing.all_symbols()["symbol"])
-        else:
-            # Get all symbols
-            symbols = list(listing.all_symbols()["symbol"])
-        
-        # Get price data
-        price_data = trading.price_board(symbols)
-        
-        # Convert to dict and filter out stocks with no price
-        result = price_data.to_dict('records')
-        
-        # Filter: only keep stocks with actual price data
-        result = [r for r in result if r.get('close_price', 0) > 0 or r.get('reference_price', 0) > 0]
-        
-        # Sort by symbol A-Z
-        result = sorted(result, key=lambda x: x.get('symbol', ''))
-        
-        # Update cache
-        if cache_key not in stock_data_cache:
-            stock_data_cache[cache_key] = {"data": None, "timestamp": None}
-        
-        stock_data_cache[cache_key]["data"] = result
-        stock_data_cache[cache_key]["timestamp"] = now
-        
-        return {"data": result, "cached": False, "group": cache_key, "count": len(result)}
-        
-    except Exception as e:
-        print(f"Error fetching market data: {e}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": str(e)}
-        )
-
-
-@app.get("/api/market/symbols")
-async def get_symbols():
-    """Get all available stock symbols"""
-    if not VNSTOCK_AVAILABLE:
-        return JSONResponse(
-            status_code=503,
-            content={"error": "vnstock is not available"}
-        )
-    
-    try:
-        listing = Listing()
-        symbols_df = listing.all_symbols()
-        symbols = symbols_df.to_dict('records')
-        return {"symbols": symbols}
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"error": str(e)}
-        )
-
-
-@app.get("/api/market/indices")
-async def get_market_indices():
-    """Get market indices (VN-INDEX, HNX-INDEX, UPCOM-INDEX)"""
-    if not VNSTOCK_AVAILABLE:
-        return JSONResponse(
-            status_code=503,
-            content={"error": "vnstock is not available"}
-        )
-    
-    try:
-        from vnstock import Quote
-        from datetime import datetime, timedelta
-        
-        # Get date range (last 5 days to ensure we get data)
-        end_date = datetime.now().strftime('%Y-%m-%d')
-        start_date = (datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d')
-        
-        indices = {}
-        
-        # VN-INDEX
-        try:
-            q = Quote(symbol='VNINDEX')
-            df = q.history(start=start_date, end=end_date)
-            if not df.empty and len(df) >= 2:
-                latest = df.iloc[-1]
-                prev = df.iloc[-2]
-                indices['VNINDEX'] = {
-                    'value': float(latest['close']),
-                    'change': float(latest['close'] - prev['close']),
-                    'percent': float((latest['close'] - prev['close']) / prev['close'] * 100)
-                }
-            else:
-                indices['VNINDEX'] = {'value': 0, 'change': 0, 'percent': 0}
-        except Exception as e:
-            print(f"Error fetching VNINDEX: {e}")
-            indices['VNINDEX'] = {'value': 0, 'change': 0, 'percent': 0}
-        
-        # HNX-INDEX
-        try:
-            q = Quote(symbol='HNXINDEX')
-            df = q.history(start=start_date, end=end_date)
-            if not df.empty and len(df) >= 2:
-                latest = df.iloc[-1]
-                prev = df.iloc[-2]
-                indices['HNX'] = {
-                    'value': float(latest['close']),
-                    'change': float(latest['close'] - prev['close']),
-                    'percent': float((latest['close'] - prev['close']) / prev['close'] * 100)
-                }
-            else:
-                indices['HNX'] = {'value': 0, 'change': 0, 'percent': 0}
-        except Exception as e:
-            print(f"Error fetching HNX: {e}")
-            indices['HNX'] = {'value': 0, 'change': 0, 'percent': 0}
-        
-        # UPCOM-INDEX
-        try:
-            q = Quote(symbol='UPCOMINDEX')
-            df = q.history(start=start_date, end=end_date)
-            if not df.empty and len(df) >= 2:
-                latest = df.iloc[-1]
-                prev = df.iloc[-2]
-                indices['UPCOM'] = {
-                    'value': float(latest['close']),
-                    'change': float(latest['close'] - prev['close']),
-                    'percent': float((latest['close'] - prev['close']) / prev['close'] * 100)
-                }
-            else:
-                indices['UPCOM'] = {'value': 0, 'change': 0, 'percent': 0}
-        except Exception as e:
-            print(f"Error fetching UPCOM: {e}")
-            indices['UPCOM'] = {'value': 0, 'change': 0, 'percent': 0}
-        
-        # VN30-INDEX
-        try:
-            q = Quote(symbol='VN30')
-            df = q.history(start=start_date, end=end_date)
-            if not df.empty and len(df) >= 2:
-                latest = df.iloc[-1]
-                prev = df.iloc[-2]
-                indices['VN30'] = {
-                    'value': float(latest['close']),
-                    'change': float(latest['close'] - prev['close']),
-                    'percent': float((latest['close'] - prev['close']) / prev['close'] * 100)
-                }
-            else:
-                indices['VN30'] = {'value': 0, 'change': 0, 'percent': 0}
-        except Exception as e:
-            print(f"Error fetching VN30: {e}")
-            indices['VN30'] = {'value': 0, 'change': 0, 'percent': 0}
-        
-        return {"indices": indices}
-        
-    except Exception as e:
-        print(f"Error fetching indices: {e}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": str(e)}
-        )
 
 
 @app.post("/api/analyze", response_model=AnalysisResponse)
@@ -869,6 +814,9 @@ async def start_analysis(request: AnalysisRequest, background_tasks: BackgroundT
             "analysts": selected_analysts,
             "alpha_signal": alpha_signal,
             "status": "initializing",
+            "current_step": "Đang tạo phiên phân tích",
+            "progress_percent": 5,
+            "cancel_requested": False,
             "created_at": datetime.datetime.now().isoformat(),
         }
         _save_sessions_to_disk()
@@ -915,6 +863,8 @@ async def get_analysis_status(session_id: str):
         return AnalysisStatus(
             session_id=session_id,
             status=session["status"],
+            current_step=session.get("current_step"),
+            progress_percent=session.get("progress_percent"),
             current_agent=message_buffer.current_agent,
             agent_status=message_buffer.agent_status,
             current_report=message_buffer.current_report,
@@ -961,6 +911,8 @@ async def get_analysis_status(session_id: str):
         return AnalysisStatus(
             session_id=session_id,
             status=session["status"],
+            current_step=session.get("current_step"),
+            progress_percent=session.get("progress_percent"),
             current_agent=session.get("current_agent"),
             agent_status=loaded_agent_status,
             current_report=loaded_current_report,
@@ -1003,6 +955,29 @@ async def delete_session(session_id: str):
         status_code=404,
         content={"error": "Session not found"}
     )
+
+
+@app.post("/api/sessions/{session_id}/cancel")
+async def cancel_session(session_id: str):
+    """Request cancellation of a running session."""
+    if session_id not in analysis_sessions:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Session not found"}
+        )
+
+    session = analysis_sessions[session_id]
+    status = str(session.get("status", ""))
+    if status in {"completed", "error", "cancelled"}:
+        return {
+            "message": f"Session is already {status}",
+            "status": status,
+        }
+
+    session["cancel_requested"] = True
+    session["current_step"] = "🛑 Đang hủy phân tích..."
+    _save_sessions_to_disk()
+    return {"message": "Cancellation requested", "status": session.get("status")}
 
 
 @app.get("/health")

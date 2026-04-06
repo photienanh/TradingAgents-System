@@ -645,6 +645,36 @@ small {
     border: 1px solid var(--success);
 }
 
+.status-badge.cancelled {
+    background: rgba(245, 158, 11, 0.2);
+    color: var(--warning);
+    border: 1px solid var(--warning);
+}
+
+.step-status {
+    margin-top: 0.75rem;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.progress-track {
+    margin-top: 0.6rem;
+    width: 100%;
+    height: 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border);
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    width: 0;
+    background: linear-gradient(90deg, var(--primary), var(--primary-light));
+    transition: width 0.35s ease;
+}
+
 /* ========== AGENTS ========== */
 .agents-status {
     margin: 2rem 0;
@@ -676,6 +706,11 @@ small {
 
 .agent-item.completed {
     border-left-color: var(--success);
+}
+
+.agent-item.not_selected {
+    border-left-color: var(--text-muted);
+    opacity: 0.75;
 }
 
 @keyframes glow {
@@ -873,6 +908,57 @@ small {
 .session-item-actions {
     display: flex;
     gap: 0.5rem;
+}
+
+/* ========== MODAL ========== */
+.modal {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(3px);
+}
+
+.modal-panel {
+    position: relative;
+    z-index: 1;
+    width: min(1100px, 96vw);
+    max-height: 92vh;
+    overflow: auto;
+    margin: 0;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.modal-close {
+    width: 38px;
+    height: 38px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: white;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--text-secondary);
+}
+
+.modal-close:hover {
+    border-color: var(--primary);
+    color: var(--primary);
 }
 
 /* ========== UTILITIES ========== */
