@@ -16,8 +16,10 @@ from threading import Lock
 
 from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
+from alpha.core.paths import ALPHA_FORMULA_DIR, ALPHA_VALUES_DIR
 from dotenv import load_dotenv
 from app.routes.market import router as market_router
+from app.routes.alpha import router as alpha_router
 from app.services.session_serialization import build_persistable_session
 from app.storage.session_store import SQLiteSessionStore
 
@@ -40,6 +42,7 @@ app.add_middleware(
 )
 
 app.include_router(market_router)
+app.include_router(alpha_router)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -182,6 +185,7 @@ def _rebuild_reports_from_final_state(final_state: Any) -> Tuple[Optional[str], 
         "sentiment_report": "Phân tích tâm lý xã hội",
         "news_report": "Phân tích tin tức",
         "fundamentals_report": "Phân tích cơ bản",
+        "quant_report": "Phân tích định lượng AlphaGPT",
         "investment_plan": "Quyết định nhóm nghiên cứu",
         "trader_investment_plan": "Kế hoạch nhóm giao dịch",
         "final_trade_decision": "Quyết định cuối cùng",
@@ -191,6 +195,7 @@ def _rebuild_reports_from_final_state(final_state: Any) -> Tuple[Optional[str], 
         "sentiment_report",
         "news_report",
         "fundamentals_report",
+        "quant_report",
         "investment_plan",
         "trader_investment_plan",
         "final_trade_decision",
@@ -211,10 +216,10 @@ def _rebuild_reports_from_final_state(final_state: Any) -> Tuple[Optional[str], 
 
     report_parts: List[str] = []
     if any(final_state.get(name) for name in [
-        "market_report", "sentiment_report", "news_report", "fundamentals_report"
+        "market_report", "sentiment_report", "news_report", "fundamentals_report", "quant_report"
     ]):
         report_parts.append("## Báo cáo nhóm phân tích")
-        for section_name in ["market_report", "sentiment_report", "news_report", "fundamentals_report"]:
+        for section_name in ["market_report", "sentiment_report", "news_report", "fundamentals_report", "quant_report"]:
             section_value = final_state.get(section_name)
             if section_value:
                 report_parts.append(f"### {section_titles[section_name]}\n{section_value}")
@@ -251,6 +256,7 @@ def _rebuild_agent_status_from_final_state(final_state: Any, session_status: str
         "sentiment_report": "Social Analyst",
         "news_report": "News Analyst",
         "fundamentals_report": "Fundamentals Analyst",
+        "quant_report": "AlphaGPT Analyst",
         "investment_plan": "Research Manager",
         "trader_investment_plan": "Trader",
         "final_trade_decision": "Portfolio Manager",
@@ -445,6 +451,7 @@ class MessageBuffer:
             "sentiment_report": None,
             "news_report": None,
             "fundamentals_report": None,
+            "quant_report": None,
             "investment_plan": None,
             "trader_investment_plan": None,
             "final_trade_decision": None,
@@ -491,6 +498,7 @@ class MessageBuffer:
                 "sentiment_report": "Phân tích tâm lý xã hội",
                 "news_report": "Phân tích tin tức",
                 "fundamentals_report": "Phân tích cơ bản",
+                "quant_report": "Phân tích định lượng AlphaGPT",
                 "investment_plan": "Quyết định nhóm nghiên cứu",
                 "trader_investment_plan": "Kế hoạch nhóm giao dịch",
                 "final_trade_decision": "Quyết định cuối cùng",
@@ -503,7 +511,7 @@ class MessageBuffer:
         report_parts = []
 
         if any(self.report_sections[section] for section in [
-            "market_report", "sentiment_report", "news_report", "fundamentals_report"
+            "market_report", "sentiment_report", "news_report", "fundamentals_report", "quant_report"
         ]):
             report_parts.append("## Báo cáo nhóm phân tích")
             if self.report_sections["market_report"]:
@@ -514,6 +522,8 @@ class MessageBuffer:
                 report_parts.append(f"### Phân tích tin tức\n{self.report_sections['news_report']}")
             if self.report_sections["fundamentals_report"]:
                 report_parts.append(f"### Phân tích cơ bản\n{self.report_sections['fundamentals_report']}")
+            if self.report_sections["quant_report"]:
+                report_parts.append(f"### Phân tích định lượng AlphaGPT\n{self.report_sections['quant_report']}")
 
         if self.report_sections["investment_plan"]:
             report_parts.append("---")
@@ -691,6 +701,7 @@ async def run_trading_analysis(
             "sentiment_report": "Social Analyst",
             "news_report": "News Analyst",
             "fundamentals_report": "Fundamentals Analyst",
+            "quant_report": "AlphaGPT Analyst",
         }
         
         # Update analyst reports
@@ -802,6 +813,8 @@ async def start_analysis(request: AnalysisRequest, background_tasks: BackgroundT
         
         # Create config
         config = DEFAULT_CONFIG.copy()
+        config["alpha_formula_dir"] = ALPHA_FORMULA_DIR
+        config["alpha_values_dir"]  = ALPHA_VALUES_DIR
         config["deep_think_llm"] = request.deep_think_llm
         config["quick_think_llm"] = request.quick_think_llm
         config["max_debate_rounds"] = request.research_depth or request.max_debate_rounds

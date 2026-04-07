@@ -1,4 +1,17 @@
+"""
+tradingagents/default_config.py
+Default runtime configuration for TradingAgents.
+"""
+
 import os
+
+# ── Đường dẫn đến project AlphaGPT ───────────────────────────────────
+# Có thể đặt ALPHAGPT_ROOT để trỏ sang repo AlphaGPT khác.
+# Mặc định dùng root của repo TradingAgents hiện tại (chứa thư mục data/).
+_ALPHAGPT_ROOT = os.getenv(
+    "ALPHAGPT_ROOT",
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..")),
+)
 
 DEFAULT_CONFIG = {
     "project_dir": os.path.abspath(os.path.join(os.path.dirname(__file__), ".")),
@@ -7,29 +20,33 @@ DEFAULT_CONFIG = {
         os.path.abspath(os.path.join(os.path.dirname(__file__), ".")),
         "dataflows/data_cache",
     ),
-    # LLM settings
-    "llm_provider": "openai",
+
+    # LLM
+    "llm_provider":   "openai",
     "deep_think_llm": "o4-mini",
-    "quick_think_llm": "gpt-4o-mini",
-    "backend_url": "https://api.openai.com/v1",
-    # Debate and discussion settings
-    "max_debate_rounds": 1,
+    "quick_think_llm":"gpt-4o-mini",
+    "backend_url":    "https://api.openai.com/v1",
+
+    # Debate
+    "max_debate_rounds":       1,
     "max_risk_discuss_rounds": 1,
-    "max_recur_limit": 100,
-    # Data vendor configuration
-    # Category-level configuration (default for all tools in category)
+    "max_recur_limit":         100,
+
+    # TradingAgents đọc từ các file này để tạo quant_report.
+    # Cần chạy AlphaGPT pipeline trước (pipelines/gen_alpha.py) để có data.
+    "alpha_formula_dir": os.path.join(_ALPHAGPT_ROOT, "data", "alpha_formulas"),
+    "alpha_values_dir":  os.path.join(_ALPHAGPT_ROOT, "data", "alphas"),
+
+    # Data vendors
     "data_vendors": {
-        "core_stock_apis": "vnstock",       # Options: yfinance, vnstock
-        "technical_indicators": "vnstock",  # Options: yfinance, vnstock
-        "fundamental_data": "vnstock", # Options: openai, vnstock, yfinance
-        "news_data": "google",        # Options: openai, google, vnstock
-        "global_data": "vietstock",      # Options: openai, vietstock
-        "insider_transaction_data": "yfinance", # Options: yfinance
+        "core_stock_apis":        "vnstock",
+        "technical_indicators":   "vnstock",
+        "fundamental_data":       "vnstock",
+        "news_data":              "google",
+        "global_data":            "vietstock",
+        "insider_transaction_data":"yfinance",
     },
-    # Tool-level configuration (takes precedence over category-level)
     "tool_vendors": {
-        # Example: "get_stock_data": "yfinance",       # Override category default
-        # Example: "get_news": "openai",               # Override category default
-        "get_news": "google,vnstock",                  # Google first, fallback to vnstock
+        "get_news": "google,vnstock",
     },
 }

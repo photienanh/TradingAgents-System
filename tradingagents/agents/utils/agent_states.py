@@ -1,82 +1,63 @@
+"""
+tradingagents/agents/utils/agent_states.py
+Thêm quant_report vào AgentState để AlphaGPT Analyst có thể
+inject dữ liệu cho các tầng downstream.
+"""
+
 from typing import Annotated, Sequence, Dict, Any
 from datetime import date, timedelta, datetime
 from typing_extensions import TypedDict, Optional
 from langchain_openai import ChatOpenAI
-from tradingagents.agents import *
 from langgraph.prebuilt import ToolNode
 from langgraph.graph import END, StateGraph, START, MessagesState
 
 
-# Researcher team state
 class InvestDebateState(TypedDict):
-    bull_history: Annotated[
-        str, "Bullish Conversation history"
-    ]  # Bullish Conversation history
-    bear_history: Annotated[
-        str, "Bearish Conversation history"
-    ]  # Bullish Conversation history
-    history: Annotated[str, "Conversation history"]  # Conversation history
-    current_response: Annotated[str, "Latest response"]  # Last response
-    judge_decision: Annotated[str, "Final judge decision"]  # Last response
-    count: Annotated[int, "Length of the current conversation"]  # Conversation length
+    bull_history:     Annotated[str, "Bullish Conversation history"]
+    bear_history:     Annotated[str, "Bearish Conversation history"]
+    history:          Annotated[str, "Conversation history"]
+    current_response: Annotated[str, "Latest response"]
+    judge_decision:   Annotated[str, "Final judge decision"]
+    count:            Annotated[int, "Length of the current conversation"]
 
 
-# Risk management team state
 class RiskDebateState(TypedDict):
-    risky_history: Annotated[
-        str, "Risky Agent's Conversation history"
-    ]  # Conversation history
-    safe_history: Annotated[
-        str, "Safe Agent's Conversation history"
-    ]  # Conversation history
-    neutral_history: Annotated[
-        str, "Neutral Agent's Conversation history"
-    ]  # Conversation history
-    alphagpt_history: Annotated[
-        str, "AlphaGPT Analyst's Conversation history"
-    ]
-    history: Annotated[str, "Conversation history"]  # Conversation history
-    latest_speaker: Annotated[str, "Analyst that spoke last"]
-    current_risky_response: Annotated[
-        str, "Latest response by the risky analyst"
-    ]  # Last response
-    current_safe_response: Annotated[
-        str, "Latest response by the safe analyst"
-    ]  # Last response
-    current_neutral_response: Annotated[
-        str, "Latest response by the neutral analyst"
-    ]  # Last response
-    current_alphagpt_response: Annotated[
-        str, "Latest response by the AlphaGPT analyst"
-    ]
-    judge_decision: Annotated[str, "Judge's decision"]
-    count: Annotated[int, "Length of the current conversation"]  # Conversation length
+    risky_history:           Annotated[str, "Risky Agent's Conversation history"]
+    safe_history:            Annotated[str, "Safe Agent's Conversation history"]
+    neutral_history:         Annotated[str, "Neutral Agent's Conversation history"]
+    history:                 Annotated[str, "Conversation history"]
+    latest_speaker:          Annotated[str, "Analyst that spoke last"]
+    current_risky_response:  Annotated[str, "Latest response by the risky analyst"]
+    current_safe_response:   Annotated[str, "Latest response by the safe analyst"]
+    current_neutral_response:Annotated[str, "Latest response by the neutral analyst"]
+    judge_decision:          Annotated[str, "Judge's decision"]
+    count:                   Annotated[int, "Length of the current conversation"]
 
 
 class AgentState(MessagesState):
     company_of_interest: Annotated[str, "Company that we are interested in trading"]
-    trade_date: Annotated[str, "What date we are trading at"]
+    trade_date:          Annotated[str, "What date we are trading at"]
+    sender:              Annotated[str, "Agent that sent this message"]
 
-    sender: Annotated[str, "Agent that sent this message"]
+    # ── Analyst reports (tầng 1) ──────────────────────────────────────
+    market_report:      Annotated[str, "Report from the Market Analyst"]
+    sentiment_report:   Annotated[str, "Report from the Social Media Analyst"]
+    news_report:        Annotated[str, "Report from the News Researcher"]
+    fundamentals_report:Annotated[str, "Report from the Fundamentals Researcher"]
 
-    # research step
-    market_report: Annotated[str, "Report from the Market Analyst"]
-    sentiment_report: Annotated[str, "Report from the Social Media Analyst"]
-    news_report: Annotated[
-        str, "Report from the News Researcher of current world affairs"
-    ]
-    fundamentals_report: Annotated[str, "Report from the Fundamentals Researcher"]
+    quant_report:       Annotated[str, "Quantitative alpha signal report from AlphaGPT"]
 
-    # researcher team discussion step
+    # ── Researcher team (tầng 2) ──────────────────────────────────────
     investment_debate_state: Annotated[
         InvestDebateState, "Current state of the debate on if to invest or not"
     ]
     investment_plan: Annotated[str, "Plan generated by the Analyst"]
 
+    # ── Trader (tầng 3) ───────────────────────────────────────────────
     trader_investment_plan: Annotated[str, "Plan generated by the Trader"]
-    alphagpt_signal: Annotated[Dict[str, Any], "Structured AlphaGPT signal for this ticker"]
+    alphagpt_signal:        Annotated[Dict[str, Any], "Structured AlphaGPT signal (legacy)"]
 
-    # risk management team discussion step
+    # ── Risk management (tầng 4) ─────────────────────────────────────
     risk_debate_state: Annotated[
         RiskDebateState, "Current state of the debate on evaluating risk"
     ]

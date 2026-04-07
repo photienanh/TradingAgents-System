@@ -12,3 +12,5 @@ eval_data/
 /test
 *.ipynb
 app/data/
+*.json
+*main_mock.py
