@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
+import re
 
 try:
     from alpha.core.universe import VN30_SYMBOLS
@@ -44,6 +45,12 @@ except ModuleNotFoundError:
 log = logging.getLogger(__name__)
 
 SENTIMENT_DIR = SENTIMENT_OUTPUT_DIR
+CAFEF_TIMEOUT_SEC = 4
+CAFEF_CIRCUIT_BREAK_SEC = 20
+CAFEF_MAX_PAGES_INCREMENTAL = 10
+
+_cafef_fail_count = 0
+_cafef_block_until: datetime | None = None
 
 os.makedirs(SIGNALS_DIR, exist_ok=True)
 
@@ -268,13 +275,16 @@ def _load_sentiment_module():
         base_path = str(BASE_DIR)
         if base_path not in sys.path:
             sys.path.insert(0, base_path)
-        return importlib.import_module("pipelines.sentiment")
+        try:
+            return importlib.import_module("alpha.pipelines.sentiment")
+        except Exception:
+            return importlib.import_module("pipelines.sentiment")
     except Exception as e:
         log.warning(f"Cannot load sentiment module: {e}")
         return None
 
 
-def _crawl_incremental_raw_news(symbol: str, sent_mod, max_pages: int = 30) -> tuple[pd.DataFrame, set[str], int]:
+def _crawl_incremental_raw_news(symbol: str, sent_mod, max_pages: int = CAFEF_MAX_PAGES_INCREMENTAL) -> tuple[pd.DataFrame, set[str], int]:
     """
     Crawl incremental news from last date in raw_news/{symbol}.csv to today.
     Deduplicate by (date, title). Returns (updated_raw_df, affected_dates, new_rows_count).
@@ -282,26 +292,44 @@ def _crawl_incremental_raw_news(symbol: str, sent_mod, max_pages: int = 30) -> t
     raw_path = os.path.join(RAW_NEWS_DIR, f"{symbol}.csv")
     os.makedirs(os.path.dirname(raw_path), exist_ok=True)
 
-    raw_df = pd.DataFrame(columns=["ticker", "date", "title"])
+    raw_df = pd.DataFrame(columns=["ticker", "date", "title", "published_at"])
     if os.path.exists(raw_path) and os.path.getsize(raw_path) > 0:
         try:
             raw_df = pd.read_csv(raw_path)
         except Exception:
-            raw_df = pd.DataFrame(columns=["ticker", "date", "title"])
+            raw_df = pd.DataFrame(columns=["ticker", "date", "title", "published_at"])
 
-    for col in ["ticker", "date", "title"]:
+    for col in ["ticker", "date", "title", "published_at"]:
         if col not in raw_df.columns:
             raw_df[col] = ""
 
-    raw_df = raw_df[["ticker", "date", "title"]].copy()
-    raw_df["date"] = pd.to_datetime(raw_df["date"], errors="coerce").dt.strftime("%Y-%m-%d")
-    raw_df = raw_df.dropna(subset=["date"])
+    raw_df = raw_df[["ticker", "date", "title", "published_at"]].copy()
+
+    # Parse historical rows safely: old rows may not have published_at.
+    raw_df["title"] = raw_df["title"].astype(str).fillna("").str.strip()
+    raw_pub = pd.to_datetime(raw_df["published_at"], errors="coerce")
+    raw_date = pd.to_datetime(raw_df["date"], errors="coerce")
+    raw_dt = raw_pub.where(raw_pub.notna(), raw_date)
+    raw_df["_dt"] = raw_dt
+    raw_df["_has_time"] = raw_pub.notna()
+    raw_df = raw_df[raw_df["_dt"].notna()].copy()
+    raw_df["date"] = raw_df["_dt"].dt.strftime("%Y-%m-%d")
+    raw_df["published_at"] = raw_df["_dt"].dt.strftime("%Y-%m-%d %H:%M:%S")
 
     today = pd.Timestamp.today().normalize()
+    raw_last_dt = None
+    raw_last_day = None
+    raw_has_time = False
+    raw_last_titles: set[str] = set()
     if raw_df.empty:
         crawl_from_day = (today - pd.Timedelta(days=7)).normalize()
     else:
-        crawl_from_day = pd.to_datetime(raw_df["date"]).max().normalize()
+        raw_last_dt = raw_df["_dt"].max()
+        raw_last_day = raw_last_dt.normalize()
+        day_rows = raw_df[raw_df["_dt"].dt.normalize() == raw_last_day]
+        raw_has_time = bool(day_rows["_has_time"].any())
+        raw_last_titles = set(day_rows["title"].str.lower())
+        crawl_from_day = raw_last_day
 
     existing_keys = set(
         (str(d), str(t).strip().lower())
@@ -309,8 +337,92 @@ def _crawl_incremental_raw_news(symbol: str, sent_mod, max_pages: int = 30) -> t
         if pd.notna(d) and pd.notna(t)
     )
 
+    global _cafef_fail_count, _cafef_block_until
+    if _cafef_block_until is not None and datetime.now() < _cafef_block_until:
+        raw_df = raw_df.drop(columns=["_dt", "_has_time"], errors="ignore").sort_values(["date", "published_at", "title"])
+        raw_df.to_csv(raw_path, index=False)
+        return raw_df, set(), 0
+
+    def _parse_cafef_item_datetime(raw_time_text: str) -> tuple[pd.Timestamp | None, str | None]:
+        date_str = sent_mod.parse_date(raw_time_text)
+        if not date_str:
+            return None, None
+        # Common CafeF formats include HH:MM; fallback keeps date-only for old templates.
+        m = re.search(r"(\d{1,2})[:hH](\d{2})", str(raw_time_text))
+        if m:
+            hh = int(m.group(1))
+            mm = int(m.group(2))
+            if 0 <= hh <= 23 and 0 <= mm <= 59:
+                dt = pd.Timestamp(f"{date_str} {hh:02d}:{mm:02d}:00")
+                return dt, dt.strftime("%Y-%m-%d %H:%M:%S")
+        dt = pd.Timestamp(date_str).normalize()
+        return dt, dt.strftime("%Y-%m-%d")
+
     new_rows: list[dict] = []
     affected_dates: set[str] = set()
+
+    # Precheck page 1 newest item to quickly skip symbols with no new data.
+    try:
+        resp = requests.get(
+            sent_mod.CAFEF_AJAX_URL,
+            params={
+                "symbol": symbol,
+                "floorID": "0",
+                "configID": "0",
+                "PageIndex": "1",
+                "PageSize": "30",
+                "Type": "2",
+            },
+            headers=sent_mod.HEADERS,
+            timeout=CAFEF_TIMEOUT_SEC,
+        )
+        first_body = resp.text.strip()
+        if not first_body or "<li" not in first_body:
+            raw_df = raw_df.drop(columns=["_dt", "_has_time"], errors="ignore").sort_values("date")
+            raw_df.to_csv(raw_path, index=False)
+            return raw_df, affected_dates, 0
+
+        first_soup = BeautifulSoup(first_body, "html.parser")
+        first_item = first_soup.find("li")
+        cafe_latest_dt = None
+        cafe_latest_title = None
+        if first_item is not None:
+            a_tag = first_item.find("a", class_="docnhanhTitle") or first_item.find("a")
+            span_tag = first_item.find("span", class_="timeTitle")
+            if a_tag and span_tag:
+                cafe_latest_title = (a_tag.get("title") or a_tag.get_text(strip=True) or "").strip().lower()
+                cafe_latest_dt, _ = _parse_cafef_item_datetime(span_tag.get_text(strip=True))
+
+        if cafe_latest_dt is not None and raw_last_day is not None:
+            cafe_latest_day = cafe_latest_dt.normalize()
+            if cafe_latest_day < raw_last_day:
+                raw_df = raw_df.drop(columns=["_dt", "_has_time"], errors="ignore").sort_values("date")
+                raw_df.to_csv(raw_path, index=False)
+                return raw_df, affected_dates, 0
+
+            if cafe_latest_day == raw_last_day:
+                if raw_has_time and raw_last_dt is not None and cafe_latest_dt <= raw_last_dt:
+                    raw_df = raw_df.drop(columns=["_dt", "_has_time"], errors="ignore").sort_values("date")
+                    raw_df.to_csv(raw_path, index=False)
+                    return raw_df, affected_dates, 0
+                if (not raw_has_time) and cafe_latest_title and cafe_latest_title in raw_last_titles:
+                    raw_df = raw_df.drop(columns=["_dt", "_has_time"], errors="ignore").sort_values("date")
+                    raw_df.to_csv(raw_path, index=False)
+                    return raw_df, affected_dates, 0
+        _cafef_fail_count = 0
+        _cafef_block_until = None
+    except Exception as e:
+        log.warning(f"[{symbol}] precheck latest CafeF item failed: {e}")
+        _cafef_fail_count += 1
+        if _cafef_fail_count >= 3:
+            _cafef_block_until = datetime.now() + timedelta(seconds=CAFEF_CIRCUIT_BREAK_SEC)
+            log.warning(
+                "CafeF seems unreachable. Pause sentiment crawl for %ds to avoid long startup delay.",
+                CAFEF_CIRCUIT_BREAK_SEC,
+            )
+        raw_df = raw_df.drop(columns=["_dt", "_has_time"], errors="ignore").sort_values(["date", "published_at", "title"])
+        raw_df.to_csv(raw_path, index=False)
+        return raw_df, affected_dates, 0
 
     for page in range(1, max_pages + 1):
         try:
@@ -325,7 +437,7 @@ def _crawl_incremental_raw_news(symbol: str, sent_mod, max_pages: int = 30) -> t
                     "Type": "2",
                 },
                 headers=sent_mod.HEADERS,
-                timeout=10,
+                timeout=CAFEF_TIMEOUT_SEC,
             )
             body = resp.text.strip()
             if not body or "<li" not in body:
@@ -342,23 +454,44 @@ def _crawl_incremental_raw_news(symbol: str, sent_mod, max_pages: int = 30) -> t
                     continue
 
                 title = (a_tag.get("title") or a_tag.get_text(strip=True) or "").strip()
-                date_str = sent_mod.parse_date(span_tag.get_text(strip=True))
-                if not title or not date_str:
+                item_dt, published_at = _parse_cafef_item_datetime(span_tag.get_text(strip=True))
+                if not title or item_dt is None:
                     continue
 
-                dt = pd.Timestamp(date_str).normalize()
-                if dt < crawl_from_day:
+                day_dt = item_dt.normalize()
+                if day_dt > today:
+                    continue
+
+                if raw_last_day is not None:
+                    if day_dt < raw_last_day:
+                        seen_older = True
+                        continue
+                    if day_dt == raw_last_day:
+                        if raw_has_time and raw_last_dt is not None and item_dt <= raw_last_dt:
+                            seen_older = True
+                            continue
+                        if (not raw_has_time) and title.lower() in raw_last_titles:
+                            seen_older = True
+                            continue
+                elif day_dt < crawl_from_day:
                     seen_older = True
                     continue
-                if dt > today:
-                    continue
+
+                date_str = day_dt.strftime("%Y-%m-%d")
 
                 k = (date_str, title.lower())
                 if k in existing_keys:
                     continue
 
                 existing_keys.add(k)
-                new_rows.append({"ticker": symbol, "date": date_str, "title": title})
+                new_rows.append(
+                    {
+                        "ticker": symbol,
+                        "date": date_str,
+                        "title": title,
+                        "published_at": published_at,
+                    }
+                )
                 affected_dates.add(date_str)
                 has_new_in_page = True
 
@@ -371,15 +504,15 @@ def _crawl_incremental_raw_news(symbol: str, sent_mod, max_pages: int = 30) -> t
 
     if new_rows:
         new_df = pd.DataFrame(new_rows)
-        merged = pd.concat([raw_df, new_df], ignore_index=True)
+        merged = pd.concat([raw_df.drop(columns=["_dt", "_has_time"], errors="ignore"), new_df], ignore_index=True)
         merged = merged.drop_duplicates(subset=["date", "title"], keep="last")
         merged["date"] = pd.to_datetime(merged["date"], errors="coerce").dt.strftime("%Y-%m-%d")
-        merged = merged.dropna(subset=["date"]).sort_values("date")
+        merged = merged.dropna(subset=["date"]).sort_values(["date", "published_at", "title"])
         merged.to_csv(raw_path, index=False)
         return merged, affected_dates, len(new_rows)
 
     if not raw_df.empty:
-        raw_df = raw_df.sort_values("date")
+        raw_df = raw_df.drop(columns=["_dt", "_has_time"], errors="ignore").sort_values(["date", "published_at", "title"])
     raw_df.to_csv(raw_path, index=False)
     return raw_df, affected_dates, 0
 
@@ -631,9 +764,12 @@ def compute_alpha_for_date(ticker: str, df_full: pd.DataFrame) -> pd.DataFrame |
         base_path = str(BASE_DIR)
         if base_path not in sys.path:
             sys.path.insert(0, base_path)
-        op = importlib.import_module("core.alpha_operators")
-    except Exception:
-        log.error("core/alpha_operators.py not found")
+        try:
+            op = importlib.import_module("alpha.core.alpha_operators")
+        except Exception:
+            op = importlib.import_module("core.alpha_operators")
+    except Exception as e:
+        log.error("alpha_operators import failed: %s", e)
         return None
 
     meta = load_alpha_meta(ticker)
@@ -877,6 +1013,26 @@ def parse_tickers(raw: str | None, use_all: bool) -> list[str]:
 
 
 def main() -> None:
+    from alpha.pipelines.pipeline_state import PipelineState
+    from alpha.core.paths import BASE_DIR
+    import os
+ 
+    _state_dir = os.path.join(str(BASE_DIR), "alpha", "pipelines")
+    _state_db = os.path.join(str(BASE_DIR), "app", "data", "sessions.db")
+    _state = PipelineState(state_dir=_state_dir, db_path=_state_db)
+ 
+    # Nếu đã chạy hôm nay → skip (trừ khi gọi --force)
+    import sys as _sys
+    _force = "--force" in _sys.argv
+    if not _force and _state.already_ran_today():
+        import logging as _log
+        _log.basicConfig(level=_log.INFO, format="%(asctime)s %(levelname)s %(message)s")
+        _log.getLogger(__name__).info(
+            "Daily runner đã chạy hôm nay (%s). Dùng --force để chạy lại.",
+            _state.last_run_date,
+        )
+        return
+ 
     parser = argparse.ArgumentParser(description="Daily signal runner")
     parser.add_argument("--all", action="store_true", help="Run for all VN30 tickers")
     parser.add_argument(
@@ -905,17 +1061,22 @@ def main() -> None:
         action="store_true",
         help="Skip recomputing alphas/*.csv from existing formulas",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Bỏ qua kiểm tra đã chạy hôm nay chưa",
+    )
     args = parser.parse_args()
-
+ 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-
+ 
     tickers = parse_tickers(args.tickers, args.all)
     if not tickers:
         log.warning("No tickers selected")
         return
-
+ 
     log.info(f"Running daily runner for {len(tickers)} tickers")
-
+ 
     target_day = None
     if not args.skip_market_refresh:
         refresh_stats = refresh_latest_market_data(tickers)
@@ -929,7 +1090,7 @@ def main() -> None:
             len(refresh_stats.get("skipped", [])),
             len(refresh_stats.get("failed", [])),
         )
-
+ 
     if not args.skip_sentiment_refresh:
         sentiment_stats = refresh_latest_sentiment_data(tickers, target_day)
         log.info(
@@ -942,7 +1103,7 @@ def main() -> None:
             len(sentiment_stats.get("skipped", [])),
             len(sentiment_stats.get("failed", [])),
         )
-
+ 
     if not args.skip_alpha_refresh:
         alpha_stats = refresh_alpha_values_from_existing_formulas(tickers)
         log.info(
@@ -950,21 +1111,24 @@ def main() -> None:
             len(alpha_stats.get("updated", [])),
             len(alpha_stats.get("failed", [])),
         )
-
+ 
     result = run_daily(tickers)
     if result.empty:
         log.warning("No daily signals produced")
     else:
         cols = ["ticker", "signal", "action", "rank"]
         log.info("Top signals:\n%s", result[cols].head(10).to_string(index=False))
-
+ 
     if args.check_decay:
         decay = check_all_decay(tickers)
         if not decay:
             log.info("No decaying alphas detected")
         else:
             log.info("Tickers needing refinement: %s", ", ".join(d["ticker"] for d in decay))
-
+ 
+    from datetime import date as _date
+    _state.last_run_date = _date.today()
+    log.info("Daily runner hoàn tất. State đã lưu: %s", _state.last_run_date)
 
 if __name__ == "__main__":
     main()

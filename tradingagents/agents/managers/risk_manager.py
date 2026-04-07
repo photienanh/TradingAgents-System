@@ -1,3 +1,10 @@
+"""
+tradingagents/agents/managers/risk_manager.py
+
+FIX:
+- Sửa bug: fundamentals_report bị gán nhầm từ news_report
+- Thêm current_alphagpt_response vào prompt
+"""
 import time
 import json
 
@@ -11,9 +18,15 @@ def create_risk_manager(llm, memory):
         risk_debate_state = state["risk_debate_state"]
         market_research_report = state["market_report"]
         news_report = state["news_report"]
-        fundamentals_report = state["news_report"]
+        fundamentals_report = state["fundamentals_report"]
         sentiment_report = state["sentiment_report"]
         trader_plan = state["investment_plan"]
+
+        # Lấy AlphaGPT signal context
+        alphagpt_response = risk_debate_state.get("current_alphagpt_response", "")
+        alphagpt_context = ""
+        if alphagpt_response:
+            alphagpt_context = f"\n\n**Tín hiệu định lượng từ AlphaGPT:**\n{alphagpt_response}"
 
         curr_situation = f"{market_research_report}\n\n{sentiment_report}\n\n{news_report}\n\n{fundamentals_report}"
         past_memories = memory.get_memories(curr_situation, n_matches=2)
@@ -22,13 +35,14 @@ def create_risk_manager(llm, memory):
         for i, rec in enumerate(past_memories, 1):
             past_memory_str += rec["recommendation"] + "\n\n"
 
-        prompt = f"""Với vai trò Trọng tài Quản trị Rủi ro và Điều phối tranh luận, nhiệm vụ của bạn là đánh giá cuộc tranh luận giữa ba nhà phân tích rủi ro (Risky, Neutral, Safe/Conservative) và đưa ra phương án tốt nhất cho trader. Quyết định cuối cùng phải rõ ràng: Buy, Sell hoặc Hold. Chỉ chọn Hold khi có lập luận thật sự thuyết phục, không dùng Hold như phương án an toàn mặc định. Hãy ưu tiên tính rõ ràng và dứt khoát.
+        prompt = f"""Với vai trò Trọng tài Quản trị Rủi ro và Điều phối tranh luận, nhiệm vụ của bạn là đánh giá cuộc tranh luận giữa ba nhà phân tích rủi ro (Risky, Neutral, Safe/Conservative) và đưa ra phương án tốt nhất cho trader. Quyết định cuối cùng phải rõ ràng: Buy, Sell hoặc Hold. Chỉ chọn Hold khi có lập luận thật sự thuyết phục, không dùng Hold như phương án an toàn mặc định. Hãy ưu tiên tính rõ ràng và dứt khoát.{alphagpt_context}
 
     Nguyên tắc ra quyết định:
     1. **Tóm tắt luận điểm chính**: Trích xuất các điểm mạnh nhất từ từng nhà phân tích, bám sát bối cảnh hiện tại.
-    2. **Nêu cơ sở lập luận**: Bảo vệ khuyến nghị bằng các luận điểm và phản biện cụ thể từ cuộc tranh luận.
-    3. **Tinh chỉnh kế hoạch giao dịch**: Bắt đầu từ kế hoạch ban đầu của trader, **{trader_plan}**, rồi điều chỉnh theo các insight từ nhóm phân tích.
-    4. **Học từ sai lầm trước đó**: Dùng các bài học trong **{past_memory_str}** để tránh lặp lại lỗi cũ và cải thiện chất lượng quyết định BUY/SELL/HOLD, giảm rủi ro thua lỗ.
+    2. **Xem xét tín hiệu AlphaGPT**: Nếu có tín hiệu định lượng từ AlphaGPT, hãy đối chiếu với phân tích định tính để tăng độ tin cậy.
+    3. **Nêu cơ sở lập luận**: Bảo vệ khuyến nghị bằng các luận điểm và phản biện cụ thể từ cuộc tranh luận.
+    4. **Tinh chỉnh kế hoạch giao dịch**: Bắt đầu từ kế hoạch ban đầu của trader, **{trader_plan}**, rồi điều chỉnh theo các insight từ nhóm phân tích.
+    5. **Học từ sai lầm trước đó**: Dùng các bài học trong **{past_memory_str}** để tránh lặp lại lỗi cũ và cải thiện chất lượng quyết định BUY/SELL/HOLD.
 
     Đầu ra cần có:
     - Một khuyến nghị rõ ràng, có thể hành động ngay: Buy, Sell hoặc Hold.

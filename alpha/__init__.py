@@ -1,3 +1,1 @@
-"""
-alpha/ — AlphaGPT quantitative engine tích hợp vào TradingAgents.
-"""
+"""alpha/__init__.py"""

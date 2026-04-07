@@ -1,4 +1,5 @@
 import datetime
+import math
 from typing import Optional
 
 from fastapi import APIRouter
@@ -12,6 +13,25 @@ except ImportError:
 
 
 router = APIRouter()
+
+
+def _json_safe(value):
+    """Convert non-finite floats recursively so JSON serialization never fails."""
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(v) for v in value]
+    return value
+
+
+def _to_float_or_zero(value) -> float:
+    try:
+        v = float(value)
+        return v if math.isfinite(v) else 0.0
+    except (TypeError, ValueError):
+        return 0.0
 
 # Cache for stock market data (separate cache for each group)
 stock_data_cache = {
@@ -70,7 +90,12 @@ async def get_market_data(group: Optional[str] = None):
 
         price_data = trading.price_board(symbols)
         result = price_data.to_dict("records")
-        result = [r for r in result if r.get("close_price", 0) > 0 or r.get("reference_price", 0) > 0]
+        result = _json_safe(result)
+        result = [
+            r for r in result
+            if _to_float_or_zero(r.get("close_price")) > 0
+            or _to_float_or_zero(r.get("reference_price")) > 0
+        ]
         result = sorted(result, key=lambda x: x.get("symbol", ""))
 
         if cache_key not in stock_data_cache:
@@ -96,7 +121,7 @@ async def get_symbols():
         listing = Listing()
         symbols_df = listing.all_symbols()
         symbols = symbols_df.to_dict("records")
-        return {"symbols": symbols}
+        return {"symbols": _json_safe(symbols)}
     except Exception as exc:
         return JSONResponse(status_code=500, content={"error": str(exc)})
 
@@ -184,7 +209,7 @@ async def get_market_indices():
             print(f"Error fetching VN30: {exc}")
             indices["VN30"] = {"value": 0, "change": 0, "percent": 0}
 
-        return {"indices": indices}
+        return {"indices": _json_safe(indices)}
 
     except Exception as exc:
         print(f"Error fetching indices: {exc}")

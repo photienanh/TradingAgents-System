@@ -1,3 +1,6 @@
+"""
+tradingagents/agents/risk_mgmt/neutral_debator.py
+"""
 import time
 import json
 
@@ -10,6 +13,7 @@ def create_neutral_debator(llm):
 
         current_risky_response = risk_debate_state.get("current_risky_response", "")
         current_safe_response = risk_debate_state.get("current_safe_response", "")
+        current_alphagpt_response = risk_debate_state.get("current_alphagpt_response", "")
 
         market_research_report = state["market_report"]
         sentiment_report = state["sentiment_report"]
@@ -18,11 +22,17 @@ def create_neutral_debator(llm):
 
         trader_decision = state["trader_investment_plan"]
 
+        # Build alphagpt context nếu có
+        alphagpt_context = ""
+        if current_alphagpt_response:
+            alphagpt_context = f"\nTín hiệu định lượng AlphaGPT (tham khảo): {current_alphagpt_response}"
+
         prompt = f"""Bạn là Neutral Risk Analyst. Vai trò của bạn là cung cấp góc nhìn cân bằng, cân nhắc cả lợi ích tiềm năng lẫn rủi ro của quyết định/kế hoạch từ trader. Bạn ưu tiên cách tiếp cận toàn diện: đánh giá cả mặt tích cực và tiêu cực, đồng thời xét thêm xu hướng thị trường rộng hơn, dịch chuyển kinh tế có thể xảy ra và chiến lược đa dạng hóa. Đây là quyết định của trader:
 
     {trader_decision}
+    {alphagpt_context}
 
-    Nhiệm vụ của bạn là phản biện cả Risky Analyst và Safe Analyst, chỉ ra nơi mỗi bên có thể quá lạc quan hoặc quá thận trọng. Hãy dùng insight từ các nguồn dữ liệu sau để đề xuất hướng điều chỉnh quyết định theo chiến lược rủi ro vừa phải và bền vững:
+    Nhiệm vụ của bạn là phản biện cả Risky Analyst và Safe Analyst, chỉ ra nơi mỗi bên có thể quá lạc quan hoặc quá thận trọng. Nếu có tín hiệu AlphaGPT, hãy dùng như bằng chứng trung lập để kiểm chứng cả hai hướng tranh luận. Hãy dùng insight từ các nguồn dữ liệu sau để đề xuất hướng điều chỉnh quyết định theo chiến lược rủi ro vừa phải và bền vững:
 
     Báo cáo nghiên cứu thị trường: {market_research_report}
     Báo cáo tâm lý mạng xã hội: {sentiment_report}
@@ -46,12 +56,10 @@ def create_neutral_debator(llm):
             "neutral_history": neutral_history + "\n" + argument,
             "alphagpt_history": risk_debate_state.get("alphagpt_history", ""),
             "latest_speaker": "Neutral",
-            "current_risky_response": risk_debate_state.get(
-                "current_risky_response", ""
-            ),
+            "current_risky_response": risk_debate_state.get("current_risky_response", ""),
             "current_safe_response": risk_debate_state.get("current_safe_response", ""),
             "current_neutral_response": argument,
-            "current_alphagpt_response": risk_debate_state.get("current_alphagpt_response", ""),
+            "current_alphagpt_response": current_alphagpt_response,
             "count": risk_debate_state["count"] + 1,
         }
 

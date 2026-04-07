@@ -19,7 +19,7 @@ if str(ROOT_DIR) not in sys.path:
 from alpha.core.universe import VN30_SYMBOLS, TICKER_INDUSTRY
 from alpha.core.paths import (FEATURES_DIR, SENTIMENT_OUTPUT_DIR,
                         ALPHA_VALUES_DIR, ALPHA_FORMULA_DIR, ALPHA_MEMORY_DIR)
-from core import alpha_operators as op
+from TradingAgents.alpha.manager import alpha_operators as op
 from alpha.core.backtester import (compute_ic, compute_ic_oos, compute_sharpe,
                               compute_sharpe_oos, compute_turnover, composite_score)
 from alpha.core.alpha_memory import AlphaMemory, compile_memory_block

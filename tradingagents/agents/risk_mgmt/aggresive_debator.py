@@ -1,3 +1,6 @@
+"""
+tradingagents/agents/risk_mgmt/aggresive_debator.py
+"""
 import time
 import json
 
@@ -10,6 +13,7 @@ def create_risky_debator(llm):
 
         current_safe_response = risk_debate_state.get("current_safe_response", "")
         current_neutral_response = risk_debate_state.get("current_neutral_response", "")
+        current_alphagpt_response = risk_debate_state.get("current_alphagpt_response", "")
 
         market_research_report = state["market_report"]
         sentiment_report = state["sentiment_report"]
@@ -18,11 +22,17 @@ def create_risky_debator(llm):
 
         trader_decision = state["trader_investment_plan"]
 
+        # Build alphagpt context nếu có
+        alphagpt_context = ""
+        if current_alphagpt_response:
+            alphagpt_context = f"\nTín hiệu định lượng AlphaGPT (tham khảo): {current_alphagpt_response}"
+
         prompt = f"""Bạn là Risky Risk Analyst. Vai trò của bạn là chủ động ủng hộ các cơ hội lợi nhuận cao đi kèm rủi ro cao, nhấn mạnh chiến lược táo bạo và lợi thế cạnh tranh. Khi đánh giá quyết định/kế hoạch của trader, hãy tập trung vào upside, tiềm năng tăng trưởng và lợi ích đột phá, kể cả khi mức rủi ro cao hơn bình thường. Dùng dữ liệu thị trường và phân tích tâm lý để củng cố lập luận, đồng thời phản biện các góc nhìn đối lập. Cụ thể, hãy phản hồi trực tiếp từng điểm do phe Conservative và Neutral nêu ra, dùng phản biện dựa trên dữ liệu và lập luận thuyết phục. Chỉ ra nơi sự thận trọng của họ có thể bỏ lỡ cơ hội quan trọng hoặc nơi giả định của họ quá bảo thủ. Đây là quyết định của trader:
 
     {trader_decision}
+    {alphagpt_context}
 
-    Nhiệm vụ của bạn là xây dựng lập luận thuyết phục ủng hộ quyết định của trader bằng cách chất vấn và phê bình quan điểm Conservative và Neutral, để chứng minh vì sao góc nhìn lợi nhuận cao là phương án tốt hơn trong bối cảnh này. Hãy tích hợp insight từ các nguồn sau vào lập luận:
+    Nhiệm vụ của bạn là xây dựng lập luận thuyết phục ủng hộ quyết định của trader bằng cách chất vấn và phê bình quan điểm Conservative và Neutral, để chứng minh vì sao góc nhìn lợi nhuận cao là phương án tốt hơn trong bối cảnh này. Nếu tín hiệu AlphaGPT có hướng long, hãy dùng làm bằng chứng định lượng bổ sung. Hãy tích hợp insight từ các nguồn sau vào lập luận:
 
     Báo cáo nghiên cứu thị trường: {market_research_report}
     Báo cáo tâm lý mạng xã hội: {sentiment_report}
@@ -51,7 +61,7 @@ def create_risky_debator(llm):
             "current_neutral_response": risk_debate_state.get(
                 "current_neutral_response", ""
             ),
-            "current_alphagpt_response": risk_debate_state.get("current_alphagpt_response", ""),
+            "current_alphagpt_response": current_alphagpt_response,
             "count": risk_debate_state["count"] + 1,
         }
 
