@@ -9,6 +9,7 @@ import json
 import asyncio
 from datetime import date
 from typing import Dict, Any, Tuple, Optional, cast, Callable
+import logging
 
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import ToolNode
@@ -31,6 +32,44 @@ from .reflection import Reflector
 from .signal_processing import SignalProcessor
 
 
+logger = logging.getLogger(__name__)
+
+
+class ResilientChatModel:
+    """Wrapper that retries calls on a fallback chat model when primary fails."""
+
+    def __init__(self, primary_model, fallback_model=None, label: str = "llm"):
+        self._primary = primary_model
+        self._fallback = fallback_model
+        self._label = label
+
+    def invoke(self, *args, **kwargs):
+        try:
+            return self._primary.invoke(*args, **kwargs)
+        except Exception as exc:
+            if self._fallback is None:
+                raise
+            logger.warning("[%s] Primary model failed, fallback will be used: %s", self._label, exc)
+            return self._fallback.invoke(*args, **kwargs)
+
+    async def ainvoke(self, *args, **kwargs):
+        try:
+            return await self._primary.ainvoke(*args, **kwargs)
+        except Exception as exc:
+            if self._fallback is None:
+                raise
+            logger.warning("[%s] Primary model failed (async), fallback will be used: %s", self._label, exc)
+            return await self._fallback.ainvoke(*args, **kwargs)
+
+    def bind_tools(self, tools):
+        primary_bound = self._primary.bind_tools(tools)
+        fallback_bound = self._fallback.bind_tools(tools) if self._fallback is not None else None
+        return ResilientChatModel(primary_bound, fallback_bound, label=self._label)
+
+    def __getattr__(self, attr):
+        return getattr(self._primary, attr)
+
+
 class TradingAgentsGraph:
     def __init__(
         self,
@@ -47,8 +86,14 @@ class TradingAgentsGraph:
             exist_ok=True,
         )
 
-        self.deep_thinking_llm  = ChatOpenAI(model=self.config["deep_think_llm"],  base_url=self.config["backend_url"])
-        self.quick_thinking_llm = ChatOpenAI(model=self.config["quick_think_llm"], base_url=self.config["backend_url"])
+        self.deep_thinking_llm = self._build_llm_with_fallback(
+            model_name=self.config["deep_think_llm"],
+            label="deep_think_llm",
+        )
+        self.quick_thinking_llm = self._build_llm_with_fallback(
+            model_name=self.config["quick_think_llm"],
+            label="quick_think_llm",
+        )
 
         self.bull_memory         = FinancialSituationMemory("bull_memory",         self.config)
         self.bear_memory         = FinancialSituationMemory("bear_memory",         self.config)
@@ -88,6 +133,35 @@ class TradingAgentsGraph:
         self.log_states_dict  = {}
 
         self.graph = self.graph_setup.setup_graph(selected_analysts)
+
+    def _build_llm_with_fallback(self, model_name: str, label: str) -> ResilientChatModel:
+        backend_url = self.config.get("backend_url", "https://api.openai.com/v1")
+        fallback_model = self.config.get("fallback_llm", "openai/gpt-oss-120b")
+        fallback_url = self.config.get("fallback_url", "https://api.groq.com/openai/v1")
+
+        openai_key = os.getenv("OPENAI_API_KEY")
+        groq_key = os.getenv("GROQ_API_KEY")
+
+        def _is_groq_model(name: str) -> bool:
+            return str(name).strip().lower() == "openai/gpt-oss-120b"
+
+        if _is_groq_model(model_name):
+            if not groq_key:
+                raise RuntimeError("GROQ_API_KEY is required when using openai/gpt-oss-120b")
+            primary = ChatOpenAI(model=model_name, base_url=fallback_url, api_key=groq_key)
+        else:
+            primary = ChatOpenAI(model=model_name, base_url=backend_url, api_key=openai_key)
+
+        fallback = None
+        if fallback_model and str(fallback_model) != str(model_name) and groq_key:
+            fallback = ChatOpenAI(model=fallback_model, base_url=fallback_url, api_key=groq_key)
+        elif fallback_model and str(fallback_model) != str(model_name) and not groq_key:
+            logger.warning("[%s] GROQ_API_KEY missing; fallback model is disabled", label)
+
+        if fallback is not None:
+            logger.info("[%s] Enabled fallback model %s via Groq", label, fallback_model)
+
+        return ResilientChatModel(primary, fallback, label=label)
 
     def _create_tool_nodes(self) -> Dict[str, ToolNode]:
         return {

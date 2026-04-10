@@ -25,7 +25,9 @@ DEFAULT_CONFIG = {
     "llm_provider":   "openai",
     "deep_think_llm": "o4-mini",
     "quick_think_llm":"gpt-4o-mini",
+    "fallback_llm":    "openai/gpt-oss-120b",
     "backend_url":    "https://api.openai.com/v1",
+    "fallback_url": "https://api.groq.com/openai/v1",
 
     # Debate
     "max_debate_rounds":       1,

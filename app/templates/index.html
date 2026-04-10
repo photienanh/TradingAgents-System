@@ -6,6 +6,74 @@
     <title>TradingAgents - AI Trading Platform</title>
     <link rel="stylesheet" href="/static/css/styles.css">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!--
+        QUAN TRỌNG: switchSection và setupTabs phải define TRƯỚC app.js load
+        vì app.js gọi switchSection() trong DOMContentLoaded handler.
+    -->
+    <script>
+        // ── Section switching ──────────────────────────────────────────────
+        function switchSection(sectionName) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.nav-item[data-section]').forEach(n => n.classList.remove('active'));
+
+            const sec = document.getElementById(sectionName + '-section');
+            if (sec) sec.classList.add('active');
+
+            const nav = document.querySelector('[data-section="' + sectionName + '"]');
+            if (nav) nav.classList.add('active');
+        }
+
+        // ── Tab switching — scoped to a container ─────────────────────────
+        // Mỗi container có .tab-btn và .tab-pane riêng, không ảnh hưởng nhau.
+        function setupTabs(containerEl) {
+            const btns  = containerEl.querySelectorAll('.tab-btn');
+            const panes = containerEl.querySelectorAll('.tab-pane');
+
+            btns.forEach(btn => {
+                btn.addEventListener('click', function () {
+                    const tab = this.dataset.tab;
+
+                    // Deactivate chỉ trong container này
+                    btns.forEach(b  => b.classList.remove('active'));
+                    panes.forEach(p => p.classList.remove('active'));
+
+                    this.classList.add('active');
+                    const pane = containerEl.querySelector('#tab-' + tab);
+                    if (pane) pane.classList.add('active');
+                });
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            // Setup tabs trong main content
+            const mainProgress = document.getElementById('analysis-progress-card');
+            if (mainProgress) setupTabs(mainProgress);
+
+            // Setup tabs trong session review modal
+            const reviewModal = document.getElementById('session-review-modal');
+            if (reviewModal) setupTabs(reviewModal);
+
+            // Sidebar nav
+            document.querySelectorAll('.nav-item[data-section]').forEach(item => {
+                item.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const section = this.dataset.section;
+                    if (section) switchSection(section);
+                });
+            });
+
+            // Sidebar toggle
+            const menuToggle = document.getElementById('menu-toggle');
+            if (menuToggle) {
+                menuToggle.addEventListener('click', function () {
+                    document.querySelector('.sidebar').classList.toggle('active');
+                });
+            }
+
+            // Show home by default
+            switchSection('home');
+        });
+    </script>
 </head>
 <body>
     <!-- Sidebar Navigation -->
@@ -15,7 +83,7 @@
                 <span class="logo-text">TradingAgents</span>
             </div>
         </div>
-        
+
         <nav class="sidebar-nav">
             <a href="#" class="nav-item active" data-section="home">
                 <span class="nav-icon">🏠</span>
@@ -42,9 +110,7 @@
         <div class="topbar">
             <div class="topbar-left">
                 <button class="menu-toggle" id="menu-toggle">
-                    <span></span>
-                    <span></span>
-                    <span></span>
+                    <span></span><span></span><span></span>
                 </button>
                 <h1 class="page-title">AI Trading Platform</h1>
             </div>
@@ -58,6 +124,7 @@
 
         <!-- Main Content Area -->
         <main class="content">
+
             <!-- Home Section -->
             <section class="section active" id="home-section">
                 <div class="welcome-banner">
@@ -75,8 +142,6 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- Quick Actions -->
                 <div class="quick-actions">
                     <h3>Quick Actions</h3>
                     <div class="action-grid">
@@ -94,7 +159,6 @@
                 </div>
             </section>
 
-            <!-- New Analysis Section -->
             <!-- New Analysis Section -->
             <section class="section" id="new-analysis-section">
                 <div class="section-header">
@@ -114,7 +178,6 @@
                                     </label>
                                     <input type="text" id="ticker" name="ticker" placeholder="HPG, VNM, MBB..." required>
                                 </div>
-
                                 <div class="form-group">
                                     <label for="analysis_date">
                                         <span class="label-icon">📅</span>
@@ -178,7 +241,6 @@
                                         <option value="5">🔬 Deep (5 rounds)</option>
                                     </select>
                                 </div>
-
                                 <div class="form-group">
                                     <label for="deep_think_llm">
                                         <span class="label-icon">🧠</span>
@@ -187,11 +249,10 @@
                                     <select id="deep_think_llm" name="deep_think_llm">
                                         <option value="gpt-4o">GPT-4o</option>
                                         <option value="gpt-4o-mini" selected>GPT-4o Mini</option>
-                                        <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                                        <option value="openai/gpt-oss-120b">OpenAI GPT-OSS 120B</option>
                                         <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
                                     </select>
                                 </div>
-
                                 <div class="form-group">
                                     <label for="quick_think_llm">
                                         <span class="label-icon">⚡</span>
@@ -200,7 +261,7 @@
                                     <select id="quick_think_llm" name="quick_think_llm">
                                         <option value="gpt-4o">GPT-4o</option>
                                         <option value="gpt-4o-mini" selected>GPT-4o Mini</option>
-                                        <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                                        <option value="openai/gpt-oss-120b">OpenAI GPT-OSS 120B</option>
                                         <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
                                     </select>
                                 </div>
@@ -216,43 +277,35 @@
                     </form>
                 </div>
 
-                <!-- Analysis Progress (Hidden by default) -->
+                <!-- Analysis Progress (hidden by default) -->
                 <div class="glass-card hidden" id="analysis-progress-card">
                     <div class="progress-header">
                         <h3>📈 Analysis in Progress</h3>
                         <div class="session-meta">
-                            <span class="meta-item">
-                                <strong>Session:</strong> <span id="session-id"></span>
-                            </span>
-                            <span class="meta-item">
-                                <strong>Ticker:</strong> <span id="current-ticker"></span>
-                            </span>
+                            <span class="meta-item"><strong>Session:</strong> <span id="session-id"></span></span>
+                            <span class="meta-item"><strong>Ticker:</strong> <span id="current-ticker"></span></span>
                             <span id="current-status" class="status-badge"></span>
                         </div>
                         <div class="step-status" id="current-step">Đang chờ bắt đầu phân tích...</div>
                         <div class="progress-track" aria-label="Analysis progress">
-                            <div class="progress-fill" id="analysis-progress-fill" style="width: 0%;"></div>
+                            <div class="progress-fill" id="analysis-progress-fill" style="width:0%"></div>
                         </div>
                     </div>
 
-                    <!-- Agents Status -->
                     <div class="agents-status">
                         <h4>🤖 Agent Status</h4>
                         <div id="agent-status" class="agent-grid"></div>
                     </div>
 
-                    <!-- Tabs for Reports -->
+                    <!-- Tabs — scoped, setupTabs() được gọi trong DOMContentLoaded -->
                     <div class="tabs">
                         <button class="tab-btn active" data-tab="current">Phân tích hiện tại</button>
                         <button class="tab-btn" data-tab="final">Báo cáo tổng hợp</button>
                         <button class="tab-btn" data-tab="decision">Quyết định</button>
                     </div>
-
                     <div class="tab-content">
                         <div class="tab-pane active" id="tab-current">
-                            <div id="current-report" class="report-content">
-                                Waiting for analysis to start...
-                            </div>
+                            <div id="current-report" class="report-content">Waiting for analysis to start...</div>
                         </div>
                         <div class="tab-pane" id="tab-final">
                             <div id="final-report" class="report-content"></div>
@@ -262,12 +315,8 @@
                         </div>
                     </div>
 
-                    <button id="new-analysis-btn" class="btn btn-secondary hidden">
-                        Start New Analysis
-                    </button>
-                    <button id="stop-analysis-btn" class="btn btn-danger hidden">
-                        Hủy phân tích
-                    </button>
+                    <button id="new-analysis-btn" class="btn btn-secondary hidden">Start New Analysis</button>
+                    <button id="stop-analysis-btn" class="btn btn-danger hidden">Hủy phân tích</button>
                 </div>
             </section>
 
@@ -277,44 +326,41 @@
                     <h2>📋 Previous Sessions</h2>
                     <p>Browse and review your analysis history</p>
                 </div>
-
                 <div class="glass-card">
                     <div id="sessions-list" class="sessions-container">
                         <p class="loading-text">Loading sessions...</p>
                     </div>
                 </div>
-
             </section>
 
         </main>
     </div>
 
-    <div id="session-review-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="session-review-title">
+    <!-- Session Review Modal -->
+    <div id="session-review-modal" class="modal hidden" role="dialog" aria-modal="true"
+         aria-labelledby="session-review-title">
         <div id="session-review-backdrop" class="modal-backdrop"></div>
         <div class="modal-panel glass-card">
             <div class="modal-header">
                 <h3 id="session-review-title">🔎 Session Review</h3>
-                <button id="close-session-review-btn" class="modal-close" type="button" aria-label="Close session review">✕</button>
+                <button id="close-session-review-btn" class="modal-close" type="button"
+                        aria-label="Close session review">✕</button>
             </div>
 
             <div class="progress-header">
                 <div class="session-meta">
-                    <span class="meta-item">
-                        <strong>Session:</strong> <span id="review-session-id"></span>
-                    </span>
-                    <span class="meta-item">
-                        <strong>Ticker:</strong> <span id="review-ticker"></span>
-                    </span>
+                    <span class="meta-item"><strong>Session:</strong> <span id="review-session-id"></span></span>
+                    <span class="meta-item"><strong>Ticker:</strong> <span id="review-ticker"></span></span>
                     <span id="review-status" class="status-badge"></span>
                 </div>
             </div>
 
+            <!-- Tabs — scoped, setupTabs() được gọi trong DOMContentLoaded -->
             <div class="tabs">
                 <button class="tab-btn active" data-tab="review-current">Phân tích hiện tại</button>
                 <button class="tab-btn" data-tab="review-final">Báo cáo tổng hợp</button>
                 <button class="tab-btn" data-tab="review-decision">Quyết định</button>
             </div>
-
             <div class="tab-content">
                 <div class="tab-pane active" id="tab-review-current">
                     <div id="review-current-report" class="report-content"></div>
@@ -329,50 +375,7 @@
         </div>
     </div>
 
+    <!-- app.js load SAU inline script ở <head> nên switchSection đã available -->
     <script src="/static/js/app.js"></script>
-    <script>
-        // Section switching
-        function switchSection(sectionName) {
-            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-            
-            document.getElementById(sectionName + '-section').classList.add('active');
-            document.querySelector(`[data-section="${sectionName}"]`).classList.add('active');
-        }
-
-        // Sidebar toggle
-        document.getElementById('menu-toggle').addEventListener('click', function() {
-            document.querySelector('.sidebar').classList.toggle('active');
-        });
-
-        // Nav items
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.addEventListener('click', function(e) {
-                e.preventDefault();
-                const section = this.dataset.section;
-                if (!section) {
-                    return;
-                }
-                switchSection(section);
-            });
-        });
-
-        // Tabs
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const tab = this.dataset.tab;
-                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-                
-                this.classList.add('active');
-                document.getElementById('tab-' + tab).classList.add('active');
-            });
-        });
-
-        // Initialize - show home by default
-        window.addEventListener('DOMContentLoaded', function() {
-            switchSection('home');
-        });
-    </script>
 </body>
 </html>

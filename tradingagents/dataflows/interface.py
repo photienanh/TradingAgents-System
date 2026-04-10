@@ -61,6 +61,33 @@ VENDOR_LIST = [
     "google",
 ]
 
+
+def _is_error_result(result) -> bool:
+    """Heuristic to detect stringified vendor failures that should trigger fallback."""
+    if not isinstance(result, str):
+        return False
+
+    text = result.strip()
+    if not text:
+        return True
+
+    lowered = text.lower()
+
+    # Common explicit failure prefixes returned by vendor wrappers.
+    if lowered.startswith("lỗi") or lowered.startswith("error") or lowered.startswith("failed"):
+        return True
+
+    # Network/retry/runtime error signatures often surfaced as plain strings.
+    error_signatures = [
+        "retryerror[",
+        "connectionerror",
+        "traceback (most recent call last)",
+        "exception:",
+        "runtimeerror",
+        "timed out",
+    ]
+    return any(sig in lowered for sig in error_signatures)
+
 # Mapping of methods to their vendor-specific implementations
 VENDOR_METHODS = {
     # core_stock_apis
@@ -198,6 +225,11 @@ def route_to_vendor(method: str, *args, **kwargs):
                 if isinstance(result, str) and not result.strip():
                     print(f"FAILED: {impl_func.__name__} from vendor '{vendor_name}' returned empty string")
                     continue
+                if _is_error_result(result):
+                    print(
+                        f"FAILED: {impl_func.__name__} from vendor '{vendor_name}' returned error-like result: {str(result)[:220]}"
+                    )
+                    continue
                 vendor_results.append(result)
                 print(f"SUCCESS: {impl_func.__name__} from vendor '{vendor_name}' completed successfully")
                     
@@ -245,3 +277,11 @@ def route_to_vendor(method: str, *args, **kwargs):
     else:
         # Convert all results to strings and concatenate
         return '\n'.join(str(result) for result in results)
+
+if __name__ == "__main__":
+    # Example usage
+    try:
+        stock_data = route_to_vendor("get_cashflow", symbol="HPG", period="quater")
+        print(stock_data)
+    except Exception as e:
+        print(f"Error retrieving stock data: {e}")

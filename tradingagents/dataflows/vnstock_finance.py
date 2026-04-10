@@ -247,8 +247,18 @@ def get_balance_sheet(
     curr_date: Annotated[Optional[str], "current date (not used)"] = None
 ):
     try:
-        finance = Finance(symbol=symbol.upper(), source="KBS")
-        data = finance.balance_sheet(period=freq)
+        if freq.lower() == "quaterly":
+            freq = "quarter"
+        elif freq.lower() == "annual":
+            freq = "year"
+
+        try:
+            finance = Finance(symbol=symbol.upper(), source="KBS")
+            data = finance.balance_sheet(period=freq)
+        except Exception as e:
+            print(f"Lỗi khi lấy dữ liệu bảng cân đối kế toán từ KBS cho {symbol}: {e}, thử lại với VCI")
+            finance = Finance(symbol=symbol.upper(), source="VCI")
+            data = finance.balance_sheet(period=freq)
 
         if data.empty:
             return f"Không có dữ liệu bảng cân đối kế toán cho mã '{symbol}'"
@@ -273,15 +283,27 @@ def get_cashflow(
     curr_date: Annotated[Optional[str], "current date (not used for yfinance)"] = None
 ):
     try:
-        finance = Finance(symbol=symbol.upper(), source="KBS")
-        data = finance.cash_flow(period=freq)
+        if freq.lower() == "quaterly":
+            freq = "quarter"
+        elif freq.lower() == "annual":
+            freq = "year"
+
+        try:
+            finance = Finance(symbol=symbol.upper(), source="KBS")
+            data = finance.cash_flow(period=freq)
+        except Exception as e:
+            print(f"Lỗi khi lấy dữ liệu lưu chuyển tiền tệ từ KBS cho {symbol}: {e}, thử lại với VCI")
+            finance = Finance(symbol=symbol.upper(), source="VCI")
+            data = finance.cash_flow(period=freq)
+
         if data.empty:
             return f"Không có dữ liệu báo cáo lưu chuyển tiền tệ cho mã '{symbol}'"
         
         if freq == "year":
             data.dropna(inplace=True)
-
-        data = data.drop(columns=["item_id"])
+        
+        if "item_id" in data.columns:
+            data = data.drop(columns=["item_id"])
         csv_string = data.to_csv(index=False)
 
         # Add header information
@@ -301,9 +323,19 @@ def get_income_statement(
 ):
 
     try:
-        finance = Finance(symbol=symbol.upper(), source="KBS")
-        data = finance.income_statement(period=freq)
+        if freq.lower() == "quaterly":
+            freq = "quarter"
+        elif freq.lower() == "annual":
+            freq = "year"
         
+        try:
+            finance = Finance(symbol=symbol.upper(), source="KBS")
+            data = finance.income_statement(period=freq)
+        except Exception as e:
+            print(f"Lỗi khi lấy dữ liệu báo cáo kết quả kinh doanh từ KBS cho {symbol}: {e}, thử lại với VCI")
+            finance = Finance(symbol=symbol.upper(), source="VCI")
+            data = finance.income_statement(period=freq)
+
         if data.empty:
             return f"Không có dữ liệu bảng cân đối kế toán cho mã '{symbol}'"
         
@@ -351,21 +383,72 @@ def get_fundamentals(
 
         if listing_name:
             overview["company_name"] = listing_name
-
-        ratio_df = Finance(symbol=ticker, source="KBS").ratio(period="quarter")
+        ratio_source = "KBS"
+        try:
+            ratio_df = Finance(symbol=ticker, source="KBS").ratio(period="quarter")
+        except Exception:
+            ratio_source = "VCI"
+            ratio_df = Finance(symbol=ticker, source="VCI").ratio(period="quarter")
         ratio_map = {}
         latest_quarter = None
         if ratio_df is not None and not ratio_df.empty:
-            quarter_cols = [
-                c for c in ratio_df.columns
-                if c not in ["item", "item_id", "Unnamed: 0"]
-            ]
-            if quarter_cols:
-                latest_quarter = quarter_cols[0]
-                for _, row in ratio_df.iterrows():
-                    item_id = row.get("item_id")
-                    if pd.notna(item_id):
-                        ratio_map[str(item_id)] = row.get(latest_quarter)
+            # KBS trả về dạng bảng chỉ tiêu theo hàng (item_id + các cột kỳ báo cáo),
+            # còn VCI trả về MultiIndex theo nhóm chỉ tiêu. Parse theo source để giữ fallback ổn định.
+            if ratio_source == "KBS":
+                quarter_cols = [
+                    c for c in ratio_df.columns
+                    if c not in ["item", "item_id", "Unnamed: 0"]
+                ]
+                if quarter_cols:
+                    latest_quarter = quarter_cols[0]
+                    for _, row in ratio_df.iterrows():
+                        item_id = row.get("item_id")
+                        if pd.notna(item_id):
+                            ratio_map[str(item_id)] = row.get(latest_quarter)
+            else:
+                if isinstance(ratio_df.columns, pd.MultiIndex):
+                    work_df = ratio_df.copy()
+
+                    year_col = ("Meta", "yearReport")
+                    len_col = ("Meta", "lengthReport")
+                    if year_col in work_df.columns:
+                        work_df[year_col] = pd.to_numeric(work_df[year_col], errors="coerce")
+                    if len_col in work_df.columns:
+                        work_df[len_col] = pd.to_numeric(work_df[len_col], errors="coerce")
+
+                    sort_cols = []
+                    if year_col in work_df.columns:
+                        sort_cols.append(year_col)
+                    if len_col in work_df.columns:
+                        sort_cols.append(len_col)
+
+                    if sort_cols:
+                        work_df = work_df.sort_values(by=sort_cols, ascending=False)
+
+                    latest_row = work_df.iloc[0]
+
+                    if year_col in work_df.columns:
+                        year_val = latest_row.get(year_col)
+                        if pd.notna(year_val):
+                            latest_quarter = str(int(year_val))
+
+                    vci_key_map = {
+                        "trailing_eps": ("Chỉ tiêu định giá", "EPS (VND)"),
+                        "book_value_per_share_bvps": ("Chỉ tiêu định giá", "BVPS (VND)"),
+                        "p_e": ("Chỉ tiêu định giá", "P/E"),
+                        "p_b": ("Chỉ tiêu định giá", "P/B"),
+                        "p_s": ("Chỉ tiêu định giá", "P/S"),
+                        "dividend_yield": ("Chỉ tiêu khả năng sinh lợi", "Dividend yield (%)"),
+                        "ev_ebitda": ("Chỉ tiêu định giá", "EV/EBITDA"),
+                        "gross_profit_margin": ("Chỉ tiêu khả năng sinh lợi", "Gross Profit Margin (%)"),
+                        "net_profit_margin": ("Chỉ tiêu khả năng sinh lợi", "Net Profit Margin (%)"),
+                        "roe": ("Chỉ tiêu khả năng sinh lợi", "ROE (%)"),
+                        "roa": ("Chỉ tiêu khả năng sinh lợi", "ROA (%)"),
+                    }
+
+                    for canonical_key, vci_col in vci_key_map.items():
+                        if vci_col in work_df.columns:
+                            ratio_map[canonical_key] = latest_row.get(vci_col)
 
         def clean(value):
             if value is None or (isinstance(value, float) and pd.isna(value)):

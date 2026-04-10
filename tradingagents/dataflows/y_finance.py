@@ -298,7 +298,7 @@ def get_balance_sheet(
     try:
         ticker_obj = yf.Ticker(_normalize_vn_ticker(ticker))
         
-        if freq.lower() == "quarterly":
+        if freq.lower() == "quarterly" or freq.lower() == "quater":
             data = ticker_obj.quarterly_balance_sheet
         else:
             data = ticker_obj.balance_sheet
@@ -329,7 +329,7 @@ def get_cashflow(
     try:
         ticker_obj = yf.Ticker(_normalize_vn_ticker(ticker))
         
-        if freq.lower() == "quarterly":
+        if freq.lower() == "quarterly" or freq.lower() == "quater":
             data = ticker_obj.quarterly_cashflow
         else:
             data = ticker_obj.cashflow
@@ -359,7 +359,7 @@ def get_income_statement(
     try:
         ticker_obj = yf.Ticker(_normalize_vn_ticker(ticker))
         
-        if freq.lower() == "quarterly":
+        if freq.lower() == "quarterly" or freq.lower() == "quater":
             data = ticker_obj.quarterly_income_stmt
         else:
             data = ticker_obj.income_stmt

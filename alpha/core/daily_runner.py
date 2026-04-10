@@ -158,7 +158,10 @@ def _refresh_features_for_ticker(ticker: str) -> bool:
         base_path = str(BASE_DIR)
         if base_path not in sys.path:
             sys.path.insert(0, base_path)
-        mod = importlib.import_module("pipelines.indicators")
+        try:
+            mod = importlib.import_module("alpha.pipelines.indicators")
+        except Exception:
+            mod = importlib.import_module("pipelines.indicators")
         add_technical_indicators = mod.add_technical_indicators
     except Exception as e:
         log.warning(f"[{ticker}] cannot import indicators module: {e}")
