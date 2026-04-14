@@ -121,8 +121,8 @@ VENDOR_METHODS = {
     # news_data
     "get_news": {
         "vnstock": get_vnstock_news,
-        "openai": get_stock_news_openai,
         "google": get_google_news,
+        "openai": get_stock_news_openai,
     },
     "get_global_news": {
         "vietstock": get_vietstock_global_news,

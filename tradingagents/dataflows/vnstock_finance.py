@@ -264,7 +264,8 @@ def get_balance_sheet(
             return f"Không có dữ liệu bảng cân đối kế toán cho mã '{symbol}'"
         
         data.dropna(inplace=True)
-        data = data.drop(columns=["item_id"])
+        if "item_id" in data.columns:
+            data = data.drop(columns=["item_id"])
         # Convert to CSV string for consistency with other functions
         csv_string = data.to_csv(index=False)
         
@@ -340,7 +341,8 @@ def get_income_statement(
             return f"Không có dữ liệu bảng cân đối kế toán cho mã '{symbol}'"
         
         data.dropna(inplace=True)
-        data = data.drop(columns=["item_id"])
+        if "item_id" in data.columns:
+            data = data.drop(columns=["item_id"])
 
         # Convert to CSV string for consistency with other functions
         csv_string = data.to_csv(index=False)

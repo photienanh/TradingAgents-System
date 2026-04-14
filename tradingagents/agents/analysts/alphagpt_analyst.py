@@ -45,14 +45,6 @@ FAMILY_MEANING = {
 }
 
 
-def _matched_family(alpha: dict) -> tuple[Optional[str], Optional[str]]:
-    """Return (family, description) only when family matches known mapping."""
-    family = str(alpha.get("family") or "").strip().lower()
-    if family in FAMILY_MEANING:
-        return family, FAMILY_MEANING[family]
-    return None, None
-
-
 # ═══════════════════════════════════════════════════════════════════════
 # PASS 1 — Build raw structured data (không LLM)
 # ═══════════════════════════════════════════════════════════════════════
@@ -187,7 +179,6 @@ def _build_raw_data(
     # Chi tiết từng alpha
     alpha_details = []
     for a in sorted(ok_alphas, key=lambda x: x.get("score", 0), reverse=True):
-        family, family_desc = _matched_family(a)
         ic_oos_v  = a.get("ic_oos")
         sh_oos_v  = a.get("sharpe_oos")
         turnover  = a.get("turnover")
@@ -242,11 +233,13 @@ def _build_raw_data(
         else:
             overfit_note = ""
 
-        detail = {
+        alpha_details.append({
             "id":           a["id"],
+            "family":       a.get("family", "unknown"),
+            "family_desc":  FAMILY_MEANING.get(a.get("family", ""), ""),
             "idea":         a.get("idea", ""),
             "hypothesis":   a.get("hypothesis", ""),
-            "expression":   a.get("expression", "").replace("alpha = ", ""),
+            "expression":   (a.get("expression", "").replace("alpha = ", "")[:120] + "...") if len(a.get("expression","")) > 120 else a.get("expression","").replace("alpha = ",""),
             "weight_pct":   weight_pct,
             "ic_oos":       f"{ic_oos_v:+.4f}" if ic_oos_v is not None else "N/A",
             "ic_oos_eval":  ic_eval,
@@ -260,13 +253,9 @@ def _build_raw_data(
             "flipped":      a.get("flipped", False),
             "gp_enhanced":  a.get("gp_enhanced", False),
             "overfit_note": overfit_note,
-        }
-        if family:
-            detail["family"] = family
-            detail["family_desc"] = family_desc
-        alpha_details.append(detail)
+        })
 
-    families = sorted({a["family"] for a in alpha_details if a.get("family")})
+    families = list({a["family"] for a in alpha_details})
 
     return {
         "ticker":           ticker,
@@ -319,27 +308,21 @@ Cấu trúc báo cáo BẮT BUỘC (giữ đúng headers):
 
 
 def _build_llm_prompt(raw: dict) -> str:
+    # Format alpha details thành text dễ đọc cho LLM
     alpha_blocks = []
     for a in raw["alpha_details"]:
         tags = []
-        if a["gp_enhanced"]:
-            tags.append("GP-enhanced")
-        if a["flipped"]:
-            tags.append("FLIPPED")
+        if a["gp_enhanced"]: tags.append("GP-enhanced")
+        if a["flipped"]:      tags.append("FLIPPED")
         tag_str = f" [{', '.join(tags)}]" if tags else ""
 
-        alpha_title = f"Alpha {a['id']}{tag_str} (trọng số {a['weight_pct']}%)"
-        family_line = ""
-        if a.get("family"):
-            alpha_title = f"Alpha {a['id']} — {a['family'].upper()}{tag_str} (trọng số {a['weight_pct']}%)"
-            family_line = f"\n  Loại: {a['family']} — {a.get('family_desc', '')}"
-
         block = f"""
-  {alpha_title}
+  Alpha {a['id']} — {a['family'].upper()}{tag_str} (trọng số {a['weight_pct']}%)
   Ý tưởng: {a['idea']}
-  Cơ sở kinh tế: {a['hypothesis']}{family_line}
+  Cơ sở kinh tế: {a['hypothesis']}
+  Loại: {a['family']} — {a['family_desc']}
   Formula: {a['expression']}
-
+  
   Số liệu hiệu suất:
   - IC out-of-sample: {a['ic_oos']} → đánh giá: {a['ic_oos_eval']}
   - IC in-sample: {a['ic_is']} | IC horizon 5 ngày: {a['ic_5d']}
@@ -350,7 +333,6 @@ def _build_llm_prompt(raw: dict) -> str:
         alpha_blocks.append(block)
 
     warnings_text = "\n".join(f"  - {w}" for w in raw["warnings"]) if raw["warnings"] else "  Không có cảnh báo đặc biệt."
-    family_summary = f"- Các alpha families: {', '.join(raw['families'])}" if raw.get("families") else ""
 
     return f"""Dưới đây là dữ liệu backtest AlphaGPT cho mã **{raw['ticker']}** ngày {raw['trade_date']}.
 Dữ liệu này được validate trên out-of-sample (30% cuối chuỗi thời gian — không bị overfit).
@@ -370,7 +352,7 @@ COMPOSITE SIGNAL:
 CHẤT LƯỢNG PORTFOLIO:
 - Avg IC_OOS: {raw['avg_ic_oos']} → {raw['ic_quality']}
 - Avg Sharpe_OOS: {raw['avg_sharpe_oos']} → {raw['sharpe_quality']}
-{family_summary}
+- Các alpha families: {', '.join(raw['families'])}
 
 CHI TIẾT TỪNG ALPHA:
 {''.join(alpha_blocks)}
@@ -393,26 +375,6 @@ Phần kết luận phải nêu rõ:
 - Bull researcher nên dùng điểm nào để argue?
 - Bear researcher nên dùng điểm nào để counter?
 """
-
-
-def _build_expression_appendix(raw: dict) -> str:
-    """Always provide explicit alpha expressions as a deterministic appendix."""
-    lines = ["### Phụ lục công thức alpha"]
-    for a in raw.get("alpha_details", []):
-        expr = str(a.get("expression") or "")
-        if not expr:
-            continue
-        lines.append(f"- Alpha {a['id']}: {expr}")
-    if len(lines) == 1:
-        lines.append("- Không có expression hợp lệ trong dữ liệu đầu vào.")
-    return "\n".join(lines)
-
-
-def _attach_expression_appendix(report: str, raw: dict) -> str:
-    appendix = _build_expression_appendix(raw)
-    if not report:
-        return appendix
-    return f"{report.rstrip()}\n\n---\n\n{appendix}\n"
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -490,7 +452,7 @@ def create_alphagpt_analyst(
                 ("human", user_prompt),
             ]
             response = llm.invoke(messages)
-            report   = _attach_expression_appendix(str(response.content), raw)
+            report   = response.content
             log.info(
                 f"[AlphaGPT Analyst] LLM report generated for {ticker} "
                 f"({len(report)} chars)"
@@ -519,16 +481,14 @@ def _fallback_plain_report(raw: dict) -> str:
         "",
     ]
     for a in raw["alpha_details"]:
-        family_prefix = f"[{a['family']}] " if a.get("family") else ""
         lines.append(
-            f"Alpha {a['id']} {family_prefix}weight={a['weight_pct']}% | "
+            f"Alpha {a['id']} [{a['family']}] weight={a['weight_pct']}% | "
             f"IC_OOS={a['ic_oos']} ({a['ic_oos_eval']}) | "
             f"Sharpe_OOS={a['sharpe_oos']} ({a['sharpe_eval']})"
         )
         lines.append(f"  {a['idea']}")
-        lines.append(f"  Expression: {a.get('expression','')}")
     if raw["warnings"]:
         lines.append("\nCảnh báo:")
         for w in raw["warnings"]:
             lines.append(f"  - {w}")
-    return _attach_expression_appendix("\n".join(lines), raw)
+    return "\n".join(lines)
