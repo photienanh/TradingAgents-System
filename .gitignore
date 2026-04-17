@@ -1,6 +1,6 @@
 .venv
 results
-env/
+/experiment
 __pycache__/
 .DS_Store
 *.csv

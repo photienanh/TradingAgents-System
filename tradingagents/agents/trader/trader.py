@@ -5,6 +5,8 @@ Thêm quant_report để Trader có thêm evidence định lượng khi ra plan.
 
 import functools
 
+from tradingagents.agents.utils.text_sanitize import sanitize_for_prompt
+
 
 def create_trader(llm, memory):
     def trader_node(state, name):
@@ -40,15 +42,15 @@ def create_trader(llm, memory):
                     f"Dựa trên phân tích tổng hợp, hãy đưa ra một khuyến nghị cụ thể: "
                     f"buy, sell hoặc hold. Phần kết luận phải rõ ràng và bắt buộc kết thúc "
                     f"bằng đúng cú pháp 'FINAL TRANSACTION PROPOSAL: **BUY/HOLD/SELL**'.\n\n"
-                    f"Phản tư từ tình huống tương tự: {past_memory_str}"
+                    f"Phản tư từ tình huống tương tự: {sanitize_for_prompt(past_memory_str)}"
                 ),
             },
             {
                 "role": "user",
                 "content": (
-                    f"## Quant Signal (AlphaGPT)\n{quant_report}\n\n"
-                    f"## Kế hoạch từ Research team\n{investment_plan}\n\n"
-                    f"Hãy tổng hợp cả hai nguồn để đưa ra trading decision cho {company_name}. "
+                    f"## Quant Signal (AlphaGPT)\n{sanitize_for_prompt(quant_report)}\n\n"
+                    f"## Kế hoạch từ Research team\n{sanitize_for_prompt(investment_plan)}\n\n"
+                    f"Hãy tổng hợp cả hai nguồn để đưa ra trading decision cho {sanitize_for_prompt(company_name)}. "
                     f"Nếu quant signal và qualitative đồng thuận, hãy tự tin hơn. "
                     f"Nếu mâu thuẫn, hãy giải thích rõ tại sao bạn chọn hướng nào."
                 ),

@@ -2,6 +2,8 @@ from langchain_core.messages import AIMessage
 import time
 import json
 
+from tradingagents.agents.utils.text_sanitize import sanitize_for_prompt
+
 
 def create_bear_researcher(llm, memory):
     def bear_node(state) -> dict:
@@ -34,13 +36,13 @@ def create_bear_researcher(llm, memory):
 
     Nguồn dữ liệu có sẵn:
 
-    Báo cáo thị trường: {market_research_report}
-    Báo cáo tâm lý mạng xã hội: {sentiment_report}
-    Tin tức thế giới gần đây: {news_report}
-    Báo cáo cơ bản doanh nghiệp: {fundamentals_report}
-    Lịch sử tranh luận: {history}
-    Luận điểm Bull gần nhất: {current_response}
-    Phản tư từ các tình huống tương tự và bài học rút ra: {past_memory_str}
+    Báo cáo thị trường: {sanitize_for_prompt(market_research_report)}
+    Báo cáo tâm lý mạng xã hội: {sanitize_for_prompt(sentiment_report)}
+    Tin tức thế giới gần đây: {sanitize_for_prompt(news_report)}
+    Báo cáo cơ bản doanh nghiệp: {sanitize_for_prompt(fundamentals_report)}
+    Lịch sử tranh luận: {sanitize_for_prompt(history)}
+    Luận điểm Bull gần nhất: {sanitize_for_prompt(current_response)}
+    Phản tư từ các tình huống tương tự và bài học rút ra: {sanitize_for_prompt(past_memory_str)}
 
     Hãy dùng các thông tin trên để xây dựng lập luận Bear thuyết phục, phản bác hiệu quả các tuyên bố của phe Bull và duy trì một cuộc tranh luận sắc nét làm rõ rủi ro cũng như điểm yếu của quyết định đầu tư. Đồng thời, bạn phải tận dụng phần phản tư để học từ sai lầm trong quá khứ và cải thiện chất lượng lập luận hiện tại.
     """

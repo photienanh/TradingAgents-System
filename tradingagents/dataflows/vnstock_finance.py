@@ -1,5 +1,5 @@
 from typing import Annotated, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from vnstock import Quote, Finance, Company, Listing
 import pandas as pd
@@ -7,6 +7,7 @@ import os
 import re
 from stockstats import wrap
 from .config import get_config
+from alpha.core.universe import VN30_SYMBOLS
 
 class Vnstock_Stats:
     @staticmethod
@@ -151,7 +152,208 @@ def get_indicators(
 
     return result_str
 
-
+def _fetch_ohlcv(symbol: str, start: str, end: str, source: str = "KBS") -> pd.DataFrame:
+    """Lấy OHLCV từ vnstock, chuẩn hoá tên cột, trả về DataFrame trống nếu lỗi."""
+    try:
+        df = Quote(symbol=symbol, source=source).history(start=start, end=end)
+        if df is None or df.empty:
+            return pd.DataFrame()
+        df = df.rename(columns={
+            "time": "date", "open": "open", "high": "high",
+            "low": "low", "close": "close", "volume": "volume",
+        })
+        df["date"] = pd.to_datetime(df["date"]).dt.normalize()
+        df = df.sort_values("date").reset_index(drop=True)
+        return df
+    except Exception as e:
+        print(f"[get_market_context] Lỗi khi lấy dữ liệu {symbol}: {e}")
+        return pd.DataFrame()
+ 
+ 
+def _classify_trend(df: pd.DataFrame) -> str:
+    """
+    Phân loại xu hướng dựa trên slope hồi quy tuyến tính của giá đóng cửa.
+    Trả về: 'tăng', 'giảm', hoặc 'đi ngang'
+    """
+    if df.empty or len(df) < 2:
+        return "không đủ dữ liệu"
+ 
+    closes = df["close"].values.astype(float)
+    x = list(range(len(closes)))
+ 
+    # slope bằng công thức hồi quy đơn giản
+    n = len(x)
+    mean_x = sum(x) / n
+    mean_y = sum(closes) / n
+    numerator   = sum((xi - mean_x) * (yi - mean_y) for xi, yi in zip(x, closes))
+    denominator = sum((xi - mean_x) ** 2 for xi in x)
+ 
+    if denominator == 0:
+        return "đi ngang"
+ 
+    slope = numerator / denominator
+    # Ngưỡng tương đối: slope > 0.1% giá trung bình mỗi phiên
+    threshold = mean_y * 0.001
+    if slope > threshold:
+        return "tăng"
+    elif slope < -threshold:
+        return "giảm"
+    else:
+        return "đi ngang"
+ 
+ 
+def _day_change(df: pd.DataFrame, ref_date: pd.Timestamp) -> dict:
+    """
+    Trả về thông tin thay đổi giá trong ngày ref_date.
+    Nếu ngày đó không có dữ liệu (ngày nghỉ/lễ), báo N/A.
+    """
+    row = df[df["date"] == ref_date]
+    if row.empty:
+        return {"date": ref_date.date(), "status": "N/A (không phải ngày giao dịch)",
+                "open": None, "close": None, "change_pct": None}
+ 
+    r = row.iloc[0]
+    change_pct = (r["close"] - r["open"]) / r["open"] * 100 if r["open"] else None
+    direction = "tăng" if (change_pct or 0) > 0 else ("giảm" if (change_pct or 0) < 0 else "đi ngang")
+    return {
+        "date": ref_date.date(),
+        "open": round(float(r["open"]), 2),
+        "close": round(float(r["close"]), 2),
+        "change_pct": round(change_pct, 2) if change_pct is not None else None,
+        "status": direction,
+    }
+ 
+def get_market_context(
+    ticker: Annotated[str, "ticker symbol đang phân tích"],
+    curr_date: Annotated[str, "ngày tham chiếu YYYY-mm-dd"],
+    look_back_days: Annotated[int, "số phiên lùi để đánh giá xu hướng trung hạn"] = 7,
+) -> str:
+    """
+    Trả về bối cảnh thị trường tại ngày tham chiếu gồm:
+      1. VN30 Index: biến động trong ngày + xu hướng look_back_days phiên gần nhất
+      2. Ticker đang phân tích: biến động trong ngày + xu hướng look_back_days phiên
+      3. Breadth VN30: bao nhiêu mã tăng / giảm / đi ngang trong look_back_days phiên
+ 
+    Ví dụ: curr_date='2026-04-13', look_back_days=7
+        → lấy dữ liệu từ 2026-04-06 đến 2026-04-13
+    """
+    ticker = ticker.upper().strip()
+    ref_dt = datetime.strptime(curr_date, "%Y-%m-%d")
+    start_dt = ref_dt - timedelta(days=look_back_days)
+ 
+    start_str = start_dt.strftime("%Y-%m-%d")
+    end_str = curr_date
+    ref_ts = pd.Timestamp(ref_dt).normalize()
+ 
+    lines: list[str] = []
+    lines.append(f"# Bối cảnh thị trường – ngày tham chiếu {curr_date}")
+    lines.append(f"# Khoảng nhìn lại: {start_str} → {end_str} ({look_back_days} ngày)\n")
+ 
+    # ------------------------------------------------------------------
+    # 1. VN30 Index
+    # ------------------------------------------------------------------
+    lines.append("## 1. VN30 Index")
+    vn30_df = _fetch_ohlcv("VN30", start=start_str, end=end_str, source="KBS")
+ 
+    if vn30_df.empty:
+        lines.append("  Không lấy được dữ liệu VN30.")
+    else:
+        # Ngày tham chiếu
+        day_info = _day_change(vn30_df, ref_ts)
+        if day_info["change_pct"] is not None:
+            lines.append(
+                f"  Ngày {day_info['date']}: mở cửa {day_info['open']:,.2f} | "
+                f"đóng cửa {day_info['close']:,.2f} | "
+                f"thay đổi {day_info['change_pct']:+.2f}% → **{day_info['status']}**"
+            )
+        else:
+            lines.append(f"  Ngày {day_info['date']}: {day_info['status']}")
+ 
+        # Xu hướng toàn kỳ
+        trend = _classify_trend(vn30_df)
+        lines.append(f"  Xu hướng {look_back_days} ngày qua: **{trend}**")
+        lines.append(
+            f"  (Giá đóng cửa đầu kỳ: {vn30_df.iloc[0]['close']:,.2f} | "
+            f"cuối kỳ: {vn30_df.iloc[-1]['close']:,.2f})"
+        )
+ 
+    lines.append("")
+ 
+    # ------------------------------------------------------------------
+    # 2. Ticker đang phân tích
+    # ------------------------------------------------------------------
+    lines.append(f"## 2. Ticker {ticker}")
+    ticker_df = _fetch_ohlcv(ticker, start=start_str, end=end_str)
+ 
+    if ticker_df.empty:
+        lines.append(f"  Không lấy được dữ liệu {ticker}.")
+    else:
+        day_info = _day_change(ticker_df, ref_ts)
+        if day_info["change_pct"] is not None:
+            lines.append(
+                f"  Ngày {day_info['date']}: mở cửa {day_info['open']:,.2f} | "
+                f"đóng cửa {day_info['close']:,.2f} | "
+                f"thay đổi {day_info['change_pct']:+.2f}% → **{day_info['status']}**"
+            )
+        else:
+            lines.append(f"  Ngày {day_info['date']}: {day_info['status']}")
+ 
+        trend = _classify_trend(ticker_df)
+        lines.append(f"  Xu hướng {look_back_days} ngày qua: **{trend}**")
+        lines.append(
+            f"  (Giá đóng cửa đầu kỳ: {ticker_df.iloc[0]['close']:,.2f} | "
+            f"cuối kỳ: {ticker_df.iloc[-1]['close']:,.2f})"
+        )
+ 
+    lines.append("")
+ 
+    # ------------------------------------------------------------------
+    # 3. Breadth VN30 – bao nhiêu mã tăng / giảm / đi ngang
+    # ------------------------------------------------------------------
+    lines.append("## 3. Breadth VN30 (xu hướng từng mã trong kỳ)")
+ 
+    breadth = {"tăng": [], "giảm": [], "đi ngang": [], "lỗi": []}
+ 
+    for sym in VN30_SYMBOLS:
+        df_sym = _fetch_ohlcv(sym, start=start_str, end=end_str)
+        if df_sym.empty:
+            breadth["lỗi"].append(sym)
+            continue
+        t = _classify_trend(df_sym)
+        if t in breadth:
+            breadth[t].append(sym)
+        else:
+            breadth["lỗi"].append(sym)
+ 
+    total = len(VN30_SYMBOLS)
+    lines.append(f"  Tổng số mã VN30 phân tích: {total}")
+    lines.append(
+        f"  📈 Tăng   : {len(breadth['tăng']):>3} mã  – {', '.join(breadth['tăng']) or '–'}"
+    )
+    lines.append(
+        f"  📉 Giảm   : {len(breadth['giảm']):>3} mã  – {', '.join(breadth['giảm']) or '–'}"
+    )
+    lines.append(
+        f"  ➡️  Đi ngang: {len(breadth['đi ngang']):>3} mã  – {', '.join(breadth['đi ngang']) or '–'}"
+    )
+    if breadth["lỗi"]:
+        lines.append(f"  ⚠️  Không lấy được dữ liệu: {', '.join(breadth['lỗi'])}")
+ 
+    lines.append("")
+ 
+    # Tóm tắt nhanh
+    lines.append("## Tóm tắt")
+    vn30_trend = _classify_trend(vn30_df) if not vn30_df.empty else "N/A"
+    ticker_trend = _classify_trend(ticker_df) if not ticker_df.empty else "N/A"
+    lines.append(
+        f"  VN30 Index {look_back_days}N: {vn30_trend} | "
+        f"{ticker} {look_back_days}N: {ticker_trend} | "
+        f"Breadth: {len(breadth['tăng'])} tăng / {len(breadth['giảm'])} giảm / "
+        f"{len(breadth['đi ngang'])} đi ngang"
+    )
+ 
+    return "\n".join(lines)
+ 
 def _get_stock_stats_bulk(
     symbol: Annotated[str, "ticker symbol of the company"],
     indicator: Annotated[str, "technical indicator to calculate"],

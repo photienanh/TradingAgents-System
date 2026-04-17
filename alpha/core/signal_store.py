@@ -43,7 +43,7 @@ class SignalStore:
     def get_signal_for_ticker(self, ticker: str) -> Dict[str, Any]:
         """
         Trả về signal dict cho TradingAgents.
-        Interface: enabled, ticker, side, score, rank, action, strength, avg_ic, avg_sharpe
+        Interface: enabled, ticker, side, score, rank, action, strength, ic_oos, avg_ic, avg_sharpe
         """
         ticker_upper = ticker.strip().upper()
         base: Dict[str, Any] = {
@@ -79,6 +79,8 @@ class SignalStore:
             "score":      _to_float(row.get("signal")),
             "rank":       _to_int(row.get("rank")),
             "strength":   _to_int(row.get("strength")),
+            # Strict: đọc trực tiếp ic_oos từ file signals.
+            "ic_oos":     _to_float(row.get("ic_oos")),
             "avg_ic":     _to_float(row.get("avg_ic")),
             "avg_sharpe": _to_float(row.get("avg_sharpe")),
         }

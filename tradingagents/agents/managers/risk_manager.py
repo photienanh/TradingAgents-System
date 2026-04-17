@@ -1,21 +1,15 @@
 """
 tradingagents/agents/managers/risk_manager.py
-
-FIX:
-- Sửa bug: fundamentals_report bị gán nhầm từ news_report
-- Thêm current_alphagpt_response vào prompt
 """
 import time
-import json
-
+from tradingagents.agents.utils.text_sanitize import sanitize_for_prompt
 
 def create_risk_manager(llm, memory):
     def risk_manager_node(state) -> dict:
 
         company_name = state["company_of_interest"]
-
-        history = state["risk_debate_state"]["history"]
         risk_debate_state = state["risk_debate_state"]
+        history = state["risk_debate_state"]["history"]
         market_research_report = state["market_report"]
         news_report = state["news_report"]
         fundamentals_report = state["fundamentals_report"]
@@ -35,27 +29,47 @@ def create_risk_manager(llm, memory):
         for i, rec in enumerate(past_memories, 1):
             past_memory_str += rec["recommendation"] + "\n\n"
 
-        prompt = f"""Với vai trò Trọng tài Quản trị Rủi ro và Điều phối tranh luận, nhiệm vụ của bạn là đánh giá cuộc tranh luận giữa ba nhà phân tích rủi ro (Risky, Neutral, Safe/Conservative) và đưa ra phương án tốt nhất cho trader. Quyết định cuối cùng phải rõ ràng: Buy, Sell hoặc Hold. Chỉ chọn Hold khi có lập luận thật sự thuyết phục, không dùng Hold như phương án an toàn mặc định. Hãy ưu tiên tính rõ ràng và dứt khoát.{alphagpt_context}
-
-    Nguyên tắc ra quyết định:
-    1. **Tóm tắt luận điểm chính**: Trích xuất các điểm mạnh nhất từ từng nhà phân tích, bám sát bối cảnh hiện tại.
-    2. **Xem xét tín hiệu AlphaGPT**: Nếu có tín hiệu định lượng từ AlphaGPT, hãy đối chiếu với phân tích định tính để tăng độ tin cậy.
-    3. **Nêu cơ sở lập luận**: Bảo vệ khuyến nghị bằng các luận điểm và phản biện cụ thể từ cuộc tranh luận.
-    4. **Tinh chỉnh kế hoạch giao dịch**: Bắt đầu từ kế hoạch ban đầu của trader, **{trader_plan}**, rồi điều chỉnh theo các insight từ nhóm phân tích.
-    5. **Học từ sai lầm trước đó**: Dùng các bài học trong **{past_memory_str}** để tránh lặp lại lỗi cũ và cải thiện chất lượng quyết định BUY/SELL/HOLD.
-
-    Đầu ra cần có:
-    - Một khuyến nghị rõ ràng, có thể hành động ngay: Buy, Sell hoặc Hold.
-    - Phần lập luận chi tiết, bám sát nội dung tranh luận và các phản tư trong quá khứ.
-
-    ---
-
-    **Lịch sử tranh luận của các nhà phân tích:**  
-    {history}
-
-    ---
-
-    Hãy tập trung vào insight có thể triển khai, cải tiến liên tục, và đánh giá nghiêm túc mọi góc nhìn để đảm bảo quyết định cuối cùng mang lại kết quả tốt hơn."""
+        prompt = prompt = (
+            f"Bạn là Risk Manager — trọng tài cuối cùng đưa ra quyết định giao dịch cho {company_name}. "
+            "Nhiệm vụ của bạn là đánh giá tranh luận từ ba analyst (Risky, Neutral, Safe) và đưa ra "
+            "khuyến nghị BUY, SELL hoặc HOLD.\n\n"
+ 
+            "**NGUYÊN TẮC QUAN TRỌNG — ĐỌC KỸ TRƯỚC KHI QUYẾT ĐỊNH:**\n"
+            "1. Không có bias mặc định về hướng nào. BUY, SELL và HOLD đều hợp lệ như nhau — "
+            "quyết định phải dựa trên bằng chứng, không phải thói quen.\n"
+            "2. Safe Analyst thường phóng đại rủi ro. Hãy đánh giá xem lo ngại của họ có "
+            "THỰC SỰ ảnh hưởng đến giá trong ngắn-trung hạn không, hay chỉ là rủi ro lý thuyết.\n"
+            "3. AlphaGPT signal BUY/SELL rõ ràng (z-score > 1.0 hoặc < -1.0) là "
+            "bằng chứng định lượng khá đáng tin cậy.\n"
+            "4. SELL chỉ hợp lý khi có catalyst tiêu cực rõ ràng (kết quả kinh doanh xấu, "
+            "rủi ro hệ thống, tin tức có thể ảnh hưởng trực tiếp đến công ty). Không SELL chỉ vì "
+            "thị trường 'không chắc chắn'.\n\n"
+ 
+            f"{alphagpt_context}\n\n"
+ 
+            "**Kế hoạch ban đầu của Trader:**\n"
+            f"{sanitize_for_prompt(trader_plan)}\n\n"
+ 
+            "**Bài học từ quyết định trước:**\n"
+            f"{sanitize_for_prompt(past_memory_str)}\n\n"
+ 
+            "**Toàn bộ lịch sử tranh luận:**\n"
+            f"{sanitize_for_prompt(history)}\n\n"
+ 
+            "---\n"
+            "**QUY TRÌNH RA QUYẾT ĐỊNH:**\n"
+            "Bước 1: Xác định luận điểm MẠNH NHẤT của Risky và MẠNH NHẤT của Safe. "
+            "Bên nào có bằng chứng cụ thể hơn (số liệu, catalyst, xu hướng rõ ràng)?\n"
+            "Bước 2: Đối chiếu với tín hiệu AlphaGPT nếu có. "
+            "Signal định lượng có nhất quán với phân tích định tính không?\n"
+            "Bước 3: Đưa ra quyết định. Nếu một bên thuyết phục hơn → theo bên đó."
+            "Nếu bằng chứng BUY và SELL cân nhau → HOLD. \n\n"
+ 
+            "Trả lời theo format:\n"
+            "**QUYẾT ĐỊNH: [BUY/SELL/HOLD]**\n"
+            "**Lý do:** [2-3 câu tóm tắt căn cứ chính]\n"
+            "**Chi tiết:** [phân tích đầy đủ dựa trên tranh luận và tín hiệu]"
+        )
 
         response = llm.invoke(prompt)
 

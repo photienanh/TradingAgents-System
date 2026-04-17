@@ -922,6 +922,8 @@ def run_daily(tickers: list[str]) -> pd.DataFrame:
             meta = load_alpha_meta(ticker)
             ok_alphas = [a for a in meta["alphas"] if a.get("status") == "OK"] if meta else []
             avg_ic = np.mean([abs(a["ic"]) for a in ok_alphas if a.get("ic")]) if ok_alphas else 0.0
+            ic_oos_vals = [abs(a.get("ic_oos")) for a in ok_alphas if a.get("ic_oos") is not None]
+            avg_ic_oos = np.mean(ic_oos_vals) if ic_oos_vals else 0.0
             avg_sharpe = np.mean([a["sharpe"] for a in ok_alphas if a.get("sharpe")]) if ok_alphas else 0.0
 
             rows.append({
@@ -930,6 +932,7 @@ def run_daily(tickers: list[str]) -> pd.DataFrame:
                 "signal":         round(latest_signal, 4),
                 "action":         action,
                 "strength":       strength,
+                "ic_oos":         round(avg_ic_oos, 4),
                 "avg_ic":         round(avg_ic, 4),
                 "avg_sharpe":     round(avg_sharpe, 4),
                 "n_alphas_ok":    len(ok_alphas),

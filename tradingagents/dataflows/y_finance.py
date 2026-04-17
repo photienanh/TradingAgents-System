@@ -1,9 +1,10 @@
 from typing import Annotated, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 import yfinance as yf
 import pandas as pd
 from .stockstats_utils import StockstatsUtils
+from alpha.core.universe import VN30_SYMBOLS
 
 def _normalize_vn_ticker(symbol: str) -> str:
     """Normalize ticker to Yahoo Finance VN format."""
@@ -28,8 +29,12 @@ def get_YFin_data_online(
     # Create ticker object
     ticker = yf.Ticker(_normalize_vn_ticker(symbol))
 
+    end_date_yf = (
+        datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)
+    ).strftime("%Y-%m-%d")
+    
     # Fetch historical data for the specified date range
-    data = ticker.history(start=start_date, end=end_date)
+    data = ticker.history(start=start_date, end=end_date_yf)
 
     # Check if data is empty
     if data.empty:
@@ -41,11 +46,7 @@ def get_YFin_data_online(
     if isinstance(data.index, pd.DatetimeIndex) and data.index.tz is not None:
         data.index = data.index.tz_localize(None)
 
-    # Round numerical values to 2 decimal places for cleaner display
-    numeric_columns = ["Open", "High", "Low", "Close", "Adj Close"]
-    for col in numeric_columns:
-        if col in data.columns:
-            data[col] = data[col].round(2)
+    data.drop(columns=["Dividends", "Stock Splits"], inplace=True, errors="ignore")
 
     # Convert DataFrame to CSV string
     csv_string = data.to_csv()
@@ -194,6 +195,235 @@ def get_indicators(
 
     return result_str
 
+def _fetch_ohlcv_single(symbol: str, start: str, end: str) -> pd.DataFrame:
+    """
+    Lấy OHLCV cho một mã qua yfinance.
+    end được cộng thêm 1 ngày vì yfinance dùng khoảng nửa mở [start, end).
+    Trả về DataFrame trống nếu lỗi.
+    """
+    try:
+        end_yf = (datetime.strptime(end, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+        df = yf.download(
+            _normalize_vn_ticker(symbol),
+            start=start,
+            end=end_yf,
+            multi_level_index=False,
+            progress=False,
+            auto_adjust=True,
+        )
+        if df is None or df.empty:
+            return pd.DataFrame()
+ 
+        df = df.reset_index()
+        df.columns = [c.lower() for c in df.columns]          # → date, open, high, low, close, volume
+        df["date"] = pd.to_datetime(df["date"]).dt.normalize()
+        df = df.sort_values("date").reset_index(drop=True)
+        return df
+    except Exception as e:
+        print(f"[get_market_context] Lỗi fetch {symbol}: {e}")
+        return pd.DataFrame()
+ 
+ 
+def _fetch_ohlcv_bulk(symbols: list[str], start: str, end: str) -> dict[str, pd.DataFrame]:
+    """
+    Lấy OHLCV cho nhiều mã cùng lúc bằng yf.download bulk (1 request).
+    Trả về dict {symbol: DataFrame}.
+    """
+    end_yf = (datetime.strptime(end, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+    yf_symbols = [_normalize_vn_ticker(s) for s in symbols]
+ 
+    try:
+        raw = yf.download(
+            yf_symbols,
+            start=start,
+            end=end_yf,
+            multi_level_index=True,       # multi-level khi >1 mã
+            progress=False,
+            auto_adjust=True,
+        )
+    except Exception as e:
+        print(f"[get_market_context] Lỗi bulk download: {e}")
+        return {}
+ 
+    if raw is None or raw.empty:
+        return {}
+ 
+    result: dict[str, pd.DataFrame] = {}
+    for sym, yf_sym in zip(symbols, yf_symbols):
+        try:
+            df = raw.xs(yf_sym, axis=1, level=1).copy()
+            df = df.reset_index()
+            df.columns = [c.lower() for c in df.columns]
+            df["date"] = pd.to_datetime(df["date"]).dt.normalize()
+            df = df.dropna(subset=["close"]).sort_values("date").reset_index(drop=True)
+            if not df.empty:
+                result[sym] = df
+        except Exception:
+            pass  # mã không có dữ liệu → bỏ qua
+ 
+    return result
+ 
+ 
+def _classify_trend(df: pd.DataFrame) -> str:
+    """
+    Phân loại xu hướng bằng slope hồi quy tuyến tính trên giá đóng cửa.
+    Ngưỡng: 0.1% giá trung bình / phiên.
+    Trả về: 'tăng' | 'giảm' | 'đi ngang' | 'không đủ dữ liệu'
+    """
+    if df.empty or len(df) < 2:
+        return "không đủ dữ liệu"
+ 
+    closes = df["close"].values.astype(float)
+    n = len(closes)
+    x = list(range(n))
+    mean_x = (n - 1) / 2
+    mean_y = sum(closes) / n
+ 
+    num = sum((xi - mean_x) * (yi - mean_y) for xi, yi in zip(x, closes))
+    den = sum((xi - mean_x) ** 2 for xi in x)
+ 
+    if den == 0:
+        return "đi ngang"
+ 
+    slope = num / den
+    threshold = mean_y * 0.001          # 0.1% / phiên
+ 
+    if slope > threshold:
+        return "tăng"
+    elif slope < -threshold:
+        return "giảm"
+    else:
+        return "đi ngang"
+ 
+ 
+def _day_change(df: pd.DataFrame, ref_ts: pd.Timestamp) -> dict:
+    """Thông tin biến động giá ngày tham chiếu."""
+    row = df[df["date"] == ref_ts]
+    if row.empty:
+        return {
+            "date": ref_ts.date(),
+            "status": "N/A (không phải ngày giao dịch)",
+            "open": None, "close": None, "change_pct": None,
+        }
+    r = row.iloc[0]
+    change_pct = (r["close"] - r["open"]) / r["open"] * 100 if r["open"] else None
+    direction = (
+        "tăng" if (change_pct or 0) > 0
+        else ("giảm" if (change_pct or 0) < 0 else "đi ngang")
+    )
+    return {
+        "date": ref_ts.date(),
+        "open": round(float(r["open"]), 2),
+        "close": round(float(r["close"]), 2),
+        "change_pct": round(change_pct, 2) if change_pct is not None else None,
+        "status": direction,
+    }
+ 
+def get_market_context(
+    ticker: Annotated[str, "ticker symbol đang phân tích"],
+    curr_date: Annotated[str, "ngày tham chiếu YYYY-mm-dd"],
+    look_back_days: Annotated[int, "số phiên lùi để đánh giá xu hướng trung hạn"] = 7,
+) -> str:
+    """
+    Trả về bối cảnh thị trường tại ngày tham chiếu gồm:
+      1. Ticker đang phân tích: biến động ngày + xu hướng look_back_days phiên
+      2. Breadth VN30: bao nhiêu mã tăng / giảm / đi ngang trong look_back_days phiên
+ 
+    Lưu ý: yfinance không cung cấp VN30 Index, nên phần này được bỏ qua.
+ 
+    Ví dụ: curr_date='2026-04-13', look_back_days=7
+        → lấy dữ liệu từ 2026-04-06 đến 2026-04-13
+    """
+    ticker = ticker.upper().strip()
+    ref_dt = datetime.strptime(curr_date, "%Y-%m-%d")
+    start_dt = ref_dt - timedelta(days=look_back_days)
+ 
+    start_str = start_dt.strftime("%Y-%m-%d")
+    end_str = curr_date
+    ref_ts = pd.Timestamp(ref_dt).normalize()
+ 
+    lines: list[str] = []
+    lines.append(f"# Bối cảnh thị trường – ngày tham chiếu {curr_date}")
+    lines.append(f"# Khoảng nhìn lại: {start_str} → {end_str} ({look_back_days} ngày)\n")
+ 
+    # ------------------------------------------------------------------
+    # 1. Ticker đang phân tích
+    # ------------------------------------------------------------------
+    lines.append(f"## 1. Ticker {ticker}")
+    ticker_df = _fetch_ohlcv_single(ticker, start=start_str, end=end_str)
+ 
+    if ticker_df.empty:
+        lines.append(f"  Không lấy được dữ liệu {ticker} từ yfinance.")
+    else:
+        day_info = _day_change(ticker_df, ref_ts)
+        if day_info["change_pct"] is not None:
+            lines.append(
+                f"  Ngày {day_info['date']}: mở cửa {day_info['open']:,.2f} | "
+                f"đóng cửa {day_info['close']:,.2f} | "
+                f"thay đổi {day_info['change_pct']:+.2f}% → **{day_info['status']}**"
+            )
+        else:
+            lines.append(f"  Ngày {day_info['date']}: {day_info['status']}")
+ 
+        trend = _classify_trend(ticker_df)
+        lines.append(f"  Xu hướng {look_back_days} ngày qua: **{trend}**")
+        lines.append(
+            f"  (Giá đóng cửa đầu kỳ: {ticker_df.iloc[0]['close']:,.2f} | "
+            f"cuối kỳ: {ticker_df.iloc[-1]['close']:,.2f})"
+        )
+ 
+    lines.append("")
+ 
+    # ------------------------------------------------------------------
+    # 2. Breadth VN30 – bulk download 1 request cho cả 30 mã
+    # ------------------------------------------------------------------
+    lines.append("## 2. Breadth VN30 (xu hướng từng mã trong kỳ)")
+ 
+    vn30_data = _fetch_ohlcv_bulk(VN30_SYMBOLS, start=start_str, end=end_str)
+ 
+    breadth: dict[str, list[str]] = {"tăng": [], "giảm": [], "đi ngang": [], "lỗi": []}
+ 
+    for sym in VN30_SYMBOLS:
+        if sym not in vn30_data:
+            breadth["lỗi"].append(sym)
+            continue
+        t = _classify_trend(vn30_data[sym])
+        if t in breadth:
+            breadth[t].append(sym)
+        else:
+            breadth["lỗi"].append(sym)
+ 
+    total = len(VN30_SYMBOLS)
+    lines.append(f"  Tổng số mã VN30 phân tích: {total}")
+    lines.append(
+        f"  📈 Tăng   : {len(breadth['tăng']):>3} mã  – {', '.join(breadth['tăng']) or '–'}"
+    )
+    lines.append(
+        f"  📉 Giảm   : {len(breadth['giảm']):>3} mã  – {', '.join(breadth['giảm']) or '–'}"
+    )
+    lines.append(
+        f"  ➡️  Đi ngang: {len(breadth['đi ngang']):>3} mã  – {', '.join(breadth['đi ngang']) or '–'}"
+    )
+    if breadth["lỗi"]:
+        lines.append(
+            f"  ⚠️  Không lấy được dữ liệu: {', '.join(breadth['lỗi'])}"
+        )
+ 
+    lines.append("")
+ 
+    # ------------------------------------------------------------------
+    # Tóm tắt
+    # ------------------------------------------------------------------
+    lines.append("## Tóm tắt")
+    ticker_trend = _classify_trend(ticker_df) if not ticker_df.empty else "N/A"
+    lines.append(
+        f"  {ticker} {look_back_days}N: {ticker_trend} | "
+        f"Breadth VN30: {len(breadth['tăng'])} tăng / "
+        f"{len(breadth['giảm'])} giảm / "
+        f"{len(breadth['đi ngang'])} đi ngang"
+    )
+ 
+    return "\n".join(lines)
 
 def _get_stock_stats_bulk(
     symbol: Annotated[str, "ticker symbol of the company"],
@@ -305,12 +535,67 @@ def get_balance_sheet(
             
         if data.empty:
             return f"Không có dữ liệu bảng cân đối kế toán cho mã '{ticker}'"
+
+        # Keep only key balance-sheet metrics and translate row labels to Vietnamese.
+        key_metrics = [
+            # Quy mô và cấu trúc vốn
+            "Total Assets",
+            "Total Liabilities Net Minority Interest",
+            "Stockholders Equity",
+            "Net Debt",
+            "Total Debt",
+            "Long Term Debt",
+            "Current Debt",
+            # Thanh khoản ngắn hạn
+            "Current Assets",
+            "Current Liabilities",
+            "Working Capital",
+            "Cash And Cash Equivalents",
+            # Chất lượng tài sản lưu động
+            "Accounts Receivable",
+            "Inventory",
+            # Chất lượng tài sản dài hạn
+            "Net PPE",
+            "Goodwill",
+            "Other Intangible Assets",
+            "Investment Properties",
+            # Khả năng tích lũy vốn
+            "Retained Earnings",
+            "Tangible Book Value",
+        ]
+
+        metric_labels_vi = {
+            "Total Assets": "Tổng tài sản",
+            "Total Liabilities Net Minority Interest": "Tổng nợ phải trả (thuần lợi ích thiểu số)",
+            "Stockholders Equity": "Vốn chủ sở hữu",
+            "Net Debt": "Nợ ròng",
+            "Total Debt": "Tổng nợ",
+            "Long Term Debt": "Nợ dài hạn",
+            "Current Debt": "Nợ vay ngắn hạn",
+            "Current Assets": "Tài sản ngắn hạn",
+            "Current Liabilities": "Nợ ngắn hạn",
+            "Working Capital": "Vốn lưu động",
+            "Cash And Cash Equivalents": "Tiền và tương đương tiền",
+            "Accounts Receivable": "Phải thu khách hàng",
+            "Inventory": "Hàng tồn kho",
+            "Net PPE": "Tài sản cố định thuần",
+            "Goodwill": "Lợi thế thương mại",
+            "Other Intangible Assets": "Tài sản vô hình khác",
+            "Investment Properties": "Bất động sản đầu tư",
+            "Retained Earnings": "Lợi nhuận giữ lại",
+            "Tangible Book Value": "Giá trị sổ sách hữu hình",
+        }
+
+        available_metrics = [metric for metric in key_metrics if metric in data.index]
+        if available_metrics:
+            data = data.loc[available_metrics]
+            data = data.rename(index={m: metric_labels_vi.get(m, m) for m in available_metrics})
             
         # Convert to CSV string for consistency with other functions
         csv_string = data.to_csv()
         
         # Add header information
-        freq_vn = "năm" if freq == "year" else "quý"
+        freq_vn = "năm" if freq == "annual" else "quý"
         header = f"# Dữ liệu bảng cân đối kế toán cho {ticker.upper()} ({freq_vn})\n"
         header += f"# Dữ liệu được lấy vào lúc: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
         
@@ -336,12 +621,76 @@ def get_cashflow(
             
         if data.empty:
             return f"Không có dữ liệu lưu chuyển tiền tệ cho mã '{ticker}'"
+
+        # Keep only key cash-flow metrics and translate row labels to Vietnamese.
+        key_metrics = [
+            # Tổng quan dòng tiền
+            "Operating Cash Flow",
+            "Investing Cash Flow",
+            "Financing Cash Flow",
+            "Free Cash Flow",
+            # Chất lượng lợi nhuận và dòng tiền hoạt động
+            "Net Income From Continuing Operations",
+            "Depreciation And Amortization",
+            "Change In Working Capital",
+            "Change In Receivables",
+            "Change In Inventory",
+            "Change In Payable",
+            # Chi đầu tư
+            "Capital Expenditure",
+            "Purchase Of PPE",
+            "Sale Of PPE",
+            # Dòng tiền tài trợ
+            "Cash Dividends Paid",
+            "Interest Paid Cfo",
+            "Taxes Refund Paid",
+            "Issuance Of Debt",
+            "Repayment Of Debt",
+            "Net Issuance Payments Of Debt",
+            # Biến động tiền mặt
+            "Beginning Cash Position",
+            "Changes In Cash",
+            "Effect Of Exchange Rate Changes",
+            "End Cash Position",
+        ]
+
+        metric_labels_vi = {
+            "Operating Cash Flow": "Dòng tiền thuần từ hoạt động kinh doanh",
+            "Investing Cash Flow": "Dòng tiền thuần từ hoạt động đầu tư",
+            "Financing Cash Flow": "Dòng tiền thuần từ hoạt động tài chính",
+            "Free Cash Flow": "Dòng tiền tự do",
+            "Net Income From Continuing Operations": "Lợi nhuận thuần từ hoạt động liên tục",
+            "Depreciation And Amortization": "Khấu hao và phân bổ",
+            "Change In Working Capital": "Biến động vốn lưu động",
+            "Change In Receivables": "Biến động các khoản phải thu",
+            "Change In Inventory": "Biến động hàng tồn kho",
+            "Change In Payable": "Biến động các khoản phải trả",
+            "Capital Expenditure": "Chi tiêu vốn (CAPEX)",
+            "Purchase Of PPE": "Chi mua tài sản cố định",
+            "Sale Of PPE": "Thu từ thanh lý tài sản cố định",
+            "Cash Dividends Paid": "Cổ tức tiền mặt đã trả",
+            "Interest Paid Cfo": "Lãi vay đã trả (CFO)",
+            "Taxes Refund Paid": "Thuế đã nộp/hoàn",
+            "Issuance Of Debt": "Thu từ phát hành nợ",
+            "Repayment Of Debt": "Chi trả nợ gốc",
+            "Net Issuance Payments Of Debt": "Thuần phát hành/trả nợ",
+            "Beginning Cash Position": "Tiền đầu kỳ",
+            "Changes In Cash": "Biến động tiền thuần trong kỳ",
+            "Effect Of Exchange Rate Changes": "Ảnh hưởng chênh lệch tỷ giá",
+            "End Cash Position": "Tiền cuối kỳ",
+        }
+
+        available_metrics = [metric for metric in key_metrics if metric in data.index]
+        if available_metrics:
+            data = data.loc[available_metrics]
+            data = data.rename(index={m: metric_labels_vi.get(m, m) for m in available_metrics})
             
         # Convert to CSV string for consistency with other functions
         csv_string = data.to_csv()
         
         # Add header information
-        header = f"# Dữ liệu lưu chuyển tiền tệ cho {ticker.upper()} ({freq})\n"
+        freq_vn = "năm" if freq == "annual" else "quý"
+        header = f"# Dữ liệu lưu chuyển tiền tệ cho {ticker.upper()} ({freq_vn})\n"
         header += f"# Dữ liệu được lấy vào lúc: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
         
         return header + csv_string
@@ -366,12 +715,76 @@ def get_income_statement(
             
         if data.empty:
             return f"Không có dữ liệu báo cáo kết quả kinh doanh cho mã '{ticker}'"
+
+        # Keep only key income-statement metrics and translate row labels to Vietnamese.
+        key_metrics = [
+            # Quy mô doanh thu
+            "Total Revenue",
+            "Operating Revenue",
+            # Biên lợi nhuận gộp và chi phí chính
+            "Cost Of Revenue",
+            "Gross Profit",
+            "Operating Expense",
+            # Lợi nhuận hoạt động
+            "Operating Income",
+            "EBIT",
+            "EBITDA",
+            # Lãi/lỗ tài chính
+            "Interest Income",
+            "Interest Expense",
+            "Net Interest Income",
+            # Lợi nhuận trước và sau thuế
+            "Pretax Income",
+            "Tax Provision",
+            "Net Income",
+            "Net Income Common Stockholders",
+            # Chỉ tiêu trên mỗi cổ phần
+            "Basic EPS",
+            "Diluted EPS",
+            "Basic Average Shares",
+            "Diluted Average Shares",
+            # Chỉ tiêu chất lượng lợi nhuận
+            "Normalized EBITDA",
+            "Normalized Income",
+            "Total Expenses",
+        ]
+
+        metric_labels_vi = {
+            "Total Revenue": "Tổng doanh thu",
+            "Operating Revenue": "Doanh thu thuần hoạt động",
+            "Cost Of Revenue": "Giá vốn hàng bán",
+            "Gross Profit": "Lợi nhuận gộp",
+            "Operating Expense": "Chi phí hoạt động",
+            "Operating Income": "Lợi nhuận hoạt động",
+            "EBIT": "Lợi nhuận trước lãi vay và thuế (EBIT)",
+            "EBITDA": "Lợi nhuận trước lãi vay, thuế và khấu hao (EBITDA)",
+            "Interest Income": "Thu nhập lãi",
+            "Interest Expense": "Chi phí lãi vay",
+            "Net Interest Income": "Thu nhập lãi thuần",
+            "Pretax Income": "Lợi nhuận trước thuế",
+            "Tax Provision": "Chi phí thuế TNDN",
+            "Net Income": "Lợi nhuận sau thuế",
+            "Net Income Common Stockholders": "LNST thuộc cổ đông phổ thông",
+            "Basic EPS": "EPS cơ bản",
+            "Diluted EPS": "EPS pha loãng",
+            "Basic Average Shares": "Số cp bình quân cơ bản",
+            "Diluted Average Shares": "Số cp bình quân pha loãng",
+            "Normalized EBITDA": "EBITDA chuẩn hóa",
+            "Normalized Income": "Lợi nhuận chuẩn hóa",
+            "Total Expenses": "Tổng chi phí",
+        }
+
+        available_metrics = [metric for metric in key_metrics if metric in data.index]
+        if available_metrics:
+            data = data.loc[available_metrics]
+            data = data.rename(index={m: metric_labels_vi.get(m, m) for m in available_metrics})
             
         # Convert to CSV string for consistency with other functions
         csv_string = data.to_csv()
         
         # Add header information
-        header = f"# Dữ liệu báo cáo kết quả kinh doanh cho {ticker.upper()} ({freq})\n"
+        freq_vn = "năm" if freq == "annual" else "quý"
+        header = f"# Dữ liệu báo cáo kết quả kinh doanh cho {ticker.upper()} ({freq_vn})\n"
         header += f"# Dữ liệu được lấy vào lúc: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
         
         return header + csv_string

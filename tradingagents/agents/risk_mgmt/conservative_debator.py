@@ -6,20 +6,7 @@ FIX: Thêm _s() sanitizer để tránh lỗi 400 JSON malformed khi gửi lên O
 import json
 from langchain_core.messages import AIMessage
 
-
-def _s(value) -> str:
-    """Sanitize bất kỳ value nào thành string an toàn cho LLM prompt."""
-    if value is None:
-        return ""
-    if isinstance(value, str):
-        return "".join(
-            ch for ch in value
-            if ord(ch) != 0 and (ord(ch) >= 32 or ch in ("\n", "\t", "\r"))
-        ).strip()
-    try:
-        return json.dumps(value, ensure_ascii=False, default=str)
-    except Exception:
-        return str(value)
+from tradingagents.agents.utils.text_sanitize import sanitize_for_prompt
 
 
 def create_safe_debator(llm):
@@ -40,7 +27,7 @@ def create_safe_debator(llm):
 
         alphagpt_context = ""
         if current_alphagpt_response:
-            alphagpt_context = f"\nTín hiệu định lượng AlphaGPT (tham khảo): {_s(current_alphagpt_response)}"
+            alphagpt_context = f"\nTín hiệu định lượng AlphaGPT (tham khảo): {sanitize_for_prompt(current_alphagpt_response)}"
 
         prompt = (
             "Bạn là Safe/Conservative Risk Analyst. Mục tiêu cốt lõi của bạn là bảo toàn tài sản, "
@@ -49,19 +36,19 @@ def create_safe_debator(llm):
             "kinh tế và biến động thị trường. Khi xem xét quyết định/kế hoạch của trader, hãy soi kỹ "
             "các thành phần rủi ro cao: chỉ ra nơi quyết định có thể khiến danh mục chịu rủi ro quá "
             "mức và nơi phương án thận trọng hơn có thể bảo vệ lợi ích dài hạn. Đây là quyết định:\n\n"
-            f"    {_s(trader_decision)}\n"
-            f"    {_s(alphagpt_context)}\n\n"
+            f"    {sanitize_for_prompt(trader_decision)}\n"
+            f"    {sanitize_for_prompt(alphagpt_context)}\n\n"
             "Nhiệm vụ của bạn là phản biện chủ động các luận điểm của Risky Analyst và Neutral Analyst, "
             "làm rõ nơi họ có thể bỏ sót đe dọa tiềm ẩn hoặc chưa đặt trọng tâm vào tính bền vững. "
             "Nếu tín hiệu AlphaGPT cho thấy hướng short, đây là bằng chứng định lượng hỗ trợ quan "
             "điểm thận trọng của bạn. Hãy dùng dữ liệu sau:\n\n"
-            f"Báo cáo nghiên cứu thị trường: {_s(market_research_report)}\n"
-            f"Báo cáo tâm lý mạng xã hội: {_s(sentiment_report)}\n"
-            f"Báo cáo thời sự thế giới gần đây: {_s(news_report)}\n"
-            f"Báo cáo cơ bản doanh nghiệp: {_s(fundamentals_report)}\n"
-            f"Lịch sử hội thoại hiện tại: {_s(history)}\n"
-            f"Phản hồi gần nhất của Risky Analyst: {_s(current_risky_response)}\n"
-            f"Phản hồi gần nhất của Neutral Analyst: {_s(current_neutral_response)}\n"
+            f"Báo cáo nghiên cứu thị trường: {sanitize_for_prompt(market_research_report)}\n"
+            f"Báo cáo tâm lý mạng xã hội: {sanitize_for_prompt(sentiment_report)}\n"
+            f"Báo cáo thời sự thế giới gần đây: {sanitize_for_prompt(news_report)}\n"
+            f"Báo cáo cơ bản doanh nghiệp: {sanitize_for_prompt(fundamentals_report)}\n"
+            f"Lịch sử hội thoại hiện tại: {sanitize_for_prompt(history)}\n"
+            f"Phản hồi gần nhất của Risky Analyst: {sanitize_for_prompt(current_risky_response)}\n"
+            f"Phản hồi gần nhất của Neutral Analyst: {sanitize_for_prompt(current_neutral_response)}\n"
             "Nếu các góc nhìn còn lại chưa có phản hồi, không bịa nội dung; chỉ trình bày lập luận "
             "của bạn.\n\n"
             "Hãy chất vấn sự lạc quan quá mức của họ và nhấn mạnh các mặt trái họ có thể bỏ qua. "

@@ -1,7 +1,7 @@
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 import time
 import json
-from tradingagents.agents.utils.agent_utils import get_stock_data, get_indicators
+from tradingagents.agents.utils.agent_utils import get_stock_data, get_indicators, get_market_context
 from tradingagents.dataflows.config import get_config
 
 
@@ -15,6 +15,7 @@ def create_market_analyst(llm):
         tools = [
             get_stock_data,
             get_indicators,
+            get_market_context,
         ]
 
         system_message = (
@@ -45,6 +46,7 @@ Volume-Based Indicators:
 - Hãy chọn chỉ báo đa dạng, bổ trợ nhau và tránh dư thừa (ví dụ: không chọn cả rsi và stochrsi cùng lúc).
 - Khi gọi tool, phải dùng **đúng tên chỉ báo** như đã định nghĩa ở trên, nếu sai tên lời gọi sẽ thất bại.
 - Bắt buộc gọi get_stock_data trước để lấy CSV đầu vào, sau đó mới gọi get_indicators với danh sách chỉ báo cụ thể.
+- Bắt buộc gọi get_market_context(ticker, current_date, 7) để lấy xu hướng VN30/ticker và breadth tăng-giảm trong ngày + 7 phiên.
 - Ràng buộc thời gian dữ liệu giá: end_date của get_stock_data phải bằng current_date hoặc sớm hơn tối đa 7 ngày giao dịch; start_date nên trong khoảng 30-180 ngày trước end_date.
 - Không tự ý lấy giai đoạn cũ nhiều năm (ví dụ năm 2023) nếu current_date là năm hiện tại, trừ khi người dùng yêu cầu backtest rõ ràng.
 - Viết báo cáo chi tiết, có chiều sâu, nêu xu hướng và insight có thể hành động; không kết luận chung chung kiểu "xu hướng trái chiều".

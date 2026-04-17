@@ -13,6 +13,7 @@ import logging
 
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import ToolNode
+from langchain_core.runnables import Runnable as _LCRunnable
 
 from tradingagents.agents import *
 from tradingagents.default_config import DEFAULT_CONFIG
@@ -20,7 +21,7 @@ from tradingagents.agents.utils.memory import FinancialSituationMemory
 from tradingagents.agents.utils.agent_states import AgentState, InvestDebateState, RiskDebateState
 from tradingagents.dataflows.config import set_config
 from tradingagents.agents.utils.agent_utils import (
-    get_stock_data, get_indicators, get_fundamentals,
+    get_stock_data, get_indicators, get_market_context, get_fundamentals,
     get_balance_sheet, get_cashflow, get_income_statement,
     get_news, get_insider_transactions, get_global_news,
 )
@@ -35,7 +36,7 @@ from .signal_processing import SignalProcessor
 logger = logging.getLogger(__name__)
 
 
-class ResilientChatModel:
+class ResilientChatModel(_LCRunnable):
     """Wrapper that retries calls on a fallback chat model when primary fails."""
 
     def __init__(self, primary_model, fallback_model=None, label: str = "llm"):
@@ -43,14 +44,20 @@ class ResilientChatModel:
         self._fallback = fallback_model
         self._label = label
 
-    def invoke(self, *args, **kwargs):
+    def __or__(self, other):
+        return self._primary.__or__(other)
+
+    def __ror__(self, other):
+        return self._primary.__ror__(other)
+    
+    def invoke(self, input, config=None, **kwargs):
         try:
-            return self._primary.invoke(*args, **kwargs)
+            return self._primary.invoke(input, config=config, **kwargs)
         except Exception as exc:
             if self._fallback is None:
                 raise
-            logger.warning("[%s] Primary model failed, fallback will be used: %s", self._label, exc)
-            return self._fallback.invoke(*args, **kwargs)
+            logger.warning(...)
+            return self._fallback.invoke(input, config=config, **kwargs)
 
     async def ainvoke(self, *args, **kwargs):
         try:
@@ -134,6 +141,29 @@ class TradingAgentsGraph:
 
         self.graph = self.graph_setup.setup_graph(selected_analysts)
 
+    @staticmethod
+    def _normalize_alphagpt_signal(alphagpt_signal: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Chuẩn hoá alpha signal cho graph state:
+        - Dùng strict ic_oos (không fallback từ avg_ic)
+        - Chuẩn hoá kiểu dữ liệu số nếu có
+        """
+        if not isinstance(alphagpt_signal, dict):
+            return {}
+
+        normalized = dict(alphagpt_signal)
+
+        def _to_float(v: Any) -> Optional[float]:
+            try:
+                return float(v) if v is not None else None
+            except (TypeError, ValueError):
+                return None
+
+        normalized["ic_oos"] = _to_float(normalized.get("ic_oos"))
+        if "avg_ic" in normalized:
+            normalized["avg_ic"] = _to_float(normalized.get("avg_ic"))
+        return normalized
+
     def _build_llm_with_fallback(self, model_name: str, label: str) -> ResilientChatModel:
         backend_url = self.config.get("backend_url", "https://api.openai.com/v1")
         fallback_model = self.config.get("fallback_llm", "openai/gpt-oss-120b")
@@ -165,7 +195,7 @@ class TradingAgentsGraph:
 
     def _create_tool_nodes(self) -> Dict[str, ToolNode]:
         return {
-            "market":       ToolNode([get_stock_data, get_indicators]),
+            "market":       ToolNode([get_stock_data, get_indicators, get_market_context]),
             "social":       ToolNode([get_news]),
             "news":         ToolNode([get_news, get_global_news, get_insider_transactions]),
             "fundamentals": ToolNode([get_fundamentals, get_balance_sheet, get_cashflow, get_income_statement]),
@@ -179,8 +209,9 @@ class TradingAgentsGraph:
         progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
     ):
         self.ticker = company_name
+        normalized_alpha_signal = self._normalize_alphagpt_signal(alphagpt_signal)
         init_agent_state = self.propagator.create_initial_state(
-            company_name, trade_date, alphagpt_signal=alphagpt_signal
+            company_name, trade_date, alphagpt_signal=normalized_alpha_signal
         )
         args = self.propagator.get_graph_args()
 

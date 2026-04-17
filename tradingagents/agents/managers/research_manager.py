@@ -1,6 +1,8 @@
 import time
 import json
 
+from tradingagents.agents.utils.text_sanitize import sanitize_for_prompt
+
 
 def create_research_manager(llm, memory):
     def research_manager_node(state) -> dict:
@@ -19,9 +21,9 @@ def create_research_manager(llm, memory):
         for i, rec in enumerate(past_memories, 1):
             past_memory_str += rec["recommendation"] + "\n\n"
 
-        prompt = f"""Với vai trò Quản lý danh mục kiêm Điều phối tranh luận, nhiệm vụ của bạn là đánh giá phản biện một cách chặt chẽ và đưa ra quyết định dứt khoát: nghiêng về Bear, nghiêng về Bull, hoặc chỉ chọn Hold khi có căn cứ rất mạnh từ các lập luận đã nêu.
+        prompt = f"""Với vai trò Quản lý danh mục kiêm Điều phối tranh luận, nhiệm vụ của bạn là đánh giá phản biện một cách chặt chẽ và đưa ra quyết định dứt khoát: nghiêng về Bear, nghiêng về Bull, hoặc chọn Hold khi có căn cứ rất mạnh từ các lập luận đã nêu.
 
-    Hãy tóm tắt ngắn gọn các luận điểm quan trọng của hai phía, tập trung vào bằng chứng/lập luận thuyết phục nhất. Khuyến nghị cuối cùng (Buy, Sell hoặc Hold) phải rõ ràng và có thể hành động. Tránh chọn Hold chỉ vì cả hai bên đều có lý; hãy chốt phương án dựa trên các luận điểm mạnh nhất trong cuộc tranh luận.
+    Hãy tóm tắt ngắn gọn các luận điểm quan trọng của hai phía, tập trung vào bằng chứng/lập luận thuyết phục nhất. Khuyến nghị cuối cùng (Buy, Sell hoặc Hold) phải rõ ràng và có thể hành động. Hãy chốt phương án dựa trên các luận điểm mạnh nhất trong cuộc tranh luận.
 
     Ngoài ra, hãy xây dựng một kế hoạch đầu tư chi tiết cho trader, bao gồm:
 
@@ -31,11 +33,11 @@ def create_research_manager(llm, memory):
     Hãy tính đến các sai lầm trước đây trong bối cảnh tương tự. Dùng các bài học này để cải thiện chất lượng ra quyết định và thể hiện bạn đang học hỏi liên tục. Trình bày tự nhiên theo văn phong hội thoại, không cần định dạng cầu kỳ.
 
     Các phản tư sai lầm trong quá khứ:
-    \"{past_memory_str}\"
+    \"{sanitize_for_prompt(past_memory_str)}\"
 
     Nội dung tranh luận:
     Lịch sử tranh luận:
-    {history}"""
+    {sanitize_for_prompt(history)}"""
         response = llm.invoke(prompt)
 
         new_investment_debate_state = {

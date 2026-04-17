@@ -5,20 +5,7 @@ FIX: Thêm _s() sanitizer để tránh lỗi 400 JSON malformed khi gửi lên O
 """
 import json
 
-
-def _s(value) -> str:
-    """Sanitize bất kỳ value nào thành string an toàn cho LLM prompt."""
-    if value is None:
-        return ""
-    if isinstance(value, str):
-        return "".join(
-            ch for ch in value
-            if ord(ch) != 0 and (ord(ch) >= 32 or ch in ("\n", "\t", "\r"))
-        ).strip()
-    try:
-        return json.dumps(value, ensure_ascii=False, default=str)
-    except Exception:
-        return str(value)
+from tradingagents.agents.utils.text_sanitize import sanitize_for_prompt
 
 
 def create_neutral_debator(llm):
@@ -39,7 +26,7 @@ def create_neutral_debator(llm):
 
         alphagpt_context = ""
         if current_alphagpt_response:
-            alphagpt_context = f"\nTín hiệu định lượng AlphaGPT (tham khảo): {_s(current_alphagpt_response)}"
+            alphagpt_context = f"\nTín hiệu định lượng AlphaGPT (tham khảo): {sanitize_for_prompt(current_alphagpt_response)}"
 
         prompt = (
             "Bạn là Neutral Risk Analyst. Vai trò của bạn là cung cấp góc nhìn cân bằng, cân nhắc cả "
@@ -47,18 +34,18 @@ def create_neutral_debator(llm):
             "cận toàn diện: đánh giá cả mặt tích cực và tiêu cực, đồng thời xét thêm xu hướng thị "
             "trường rộng hơn, dịch chuyển kinh tế có thể xảy ra và chiến lược đa dạng hóa. Đây là "
             "quyết định của trader:\n\n"
-            f"    {_s(trader_decision)}\n"
-            f"    {_s(alphagpt_context)}\n\n"
+            f"    {sanitize_for_prompt(trader_decision)}\n"
+            f"    {sanitize_for_prompt(alphagpt_context)}\n\n"
             "Nhiệm vụ của bạn là phản biện cả Risky Analyst và Safe Analyst, chỉ ra nơi mỗi bên có "
             "thể quá lạc quan hoặc quá thận trọng. Nếu có tín hiệu AlphaGPT, hãy dùng như bằng chứng "
             "trung lập để kiểm chứng cả hai hướng tranh luận. Hãy dùng dữ liệu sau:\n\n"
-            f"Báo cáo nghiên cứu thị trường: {_s(market_research_report)}\n"
-            f"Báo cáo tâm lý mạng xã hội: {_s(sentiment_report)}\n"
-            f"Báo cáo thời sự thế giới gần đây: {_s(news_report)}\n"
-            f"Báo cáo cơ bản doanh nghiệp: {_s(fundamentals_report)}\n"
-            f"Lịch sử hội thoại hiện tại: {_s(history)}\n"
-            f"Phản hồi gần nhất của Risky Analyst: {_s(current_risky_response)}\n"
-            f"Phản hồi gần nhất của Safe Analyst: {_s(current_safe_response)}\n"
+            f"Báo cáo nghiên cứu thị trường: {sanitize_for_prompt(market_research_report)}\n"
+            f"Báo cáo tâm lý mạng xã hội: {sanitize_for_prompt(sentiment_report)}\n"
+            f"Báo cáo thời sự thế giới gần đây: {sanitize_for_prompt(news_report)}\n"
+            f"Báo cáo cơ bản doanh nghiệp: {sanitize_for_prompt(fundamentals_report)}\n"
+            f"Lịch sử hội thoại hiện tại: {sanitize_for_prompt(history)}\n"
+            f"Phản hồi gần nhất của Risky Analyst: {sanitize_for_prompt(current_risky_response)}\n"
+            f"Phản hồi gần nhất của Safe Analyst: {sanitize_for_prompt(current_safe_response)}\n"
             "Nếu các góc nhìn còn lại chưa có phản hồi, không bịa nội dung; chỉ trình bày lập luận "
             "của bạn.\n\n"
             "Hãy chủ động phân tích phê phán cả hai phía, xử lý điểm yếu trong lập luận rủi ro cao "
