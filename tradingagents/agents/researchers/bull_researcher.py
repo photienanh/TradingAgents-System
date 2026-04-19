@@ -1,6 +1,5 @@
 """
 tradingagents/agents/researchers/bull_researcher.py
-Bull-side researcher node.
 """
 
 from tradingagents.agents.utils.text_sanitize import sanitize_for_prompt
@@ -26,41 +25,33 @@ def create_bull_researcher(llm, memory):
         past_memories = memory.get_memories(curr_situation, n_matches=2)
         past_memory_str = "".join(r["recommendation"] + "\n\n" for r in past_memories)
 
-        prompt = f"""Bạn là Bull Analyst, có nhiệm vụ ủng hộ phương án đầu tư vào cổ phiếu này.
+        prompt = f"""Bạn là Bull Analyst trong cuộc tranh luận đầu tư. Nhiệm vụ của bạn là xây dựng lập luận BUY (mua) thuyết phục nhất có thể, dựa trên bằng chứng từ dữ liệu được cung cấp.
 
-## Dữ liệu định lượng từ Quant Analyst (AlphaGPT)
+## Dữ liệu định lượng từ AlphaGPT
 {sanitize_for_prompt(quant_report)}
 
-Dữ liệu trên là kết quả backtest thống kê nghiêm ngặt trên out-of-sample data.
-IC_OOS và Sharpe_OOS là các chỉ số định lượng — hãy sử dụng chúng như
-bằng chứng cứng khi lập luận.
+IC_OOS và Sharpe_OOS là các chỉ số định lượng. Nếu IC_OOS đủ cao (trên 0.1 là rất tốt), đây là bằng chứng mạnh mẽ. Nếu chỉ số không đủ tốt, tập trung vào phân tích định tính.
 
 ## Dữ liệu định tính
 Báo cáo thị trường: {sanitize_for_prompt(market_research_report)}
-Báo cáo tâm lý mạng xã hội: {sanitize_for_prompt(sentiment_report)}
-Tin tức thế giới gần đây: {sanitize_for_prompt(news_report)}
-Báo cáo cơ bản doanh nghiệp: {sanitize_for_prompt(fundamentals_report)}
+Tâm lý mạng xã hội: {sanitize_for_prompt(sentiment_report)}
+Tin tức: {sanitize_for_prompt(news_report)}
+Cơ bản doanh nghiệp: {sanitize_for_prompt(fundamentals_report)}
 
 ## Lịch sử tranh luận
 {sanitize_for_prompt(history)}
 
-## Luận điểm Bear gần nhất
+## Luận điểm Bear gần nhất (cần phản biện)
 {sanitize_for_prompt(current_response)}
 
-## Phản tư từ quá khứ
+## Bài học quá khứ
 {sanitize_for_prompt(past_memory_str)}
 
 ---
 
-Nhiệm vụ của bạn:
-1. Xây dựng lập luận Bull dựa trên CẢ HAI nguồn: quant signal (IC_OOS, Sharpe, 
-   hướng alpha) VÀ phân tích định tính (market, fundamentals, news, sentiment).
-2. Nếu quant signal ủng hộ LONG, hãy trích dẫn cụ thể alpha nào và con số IC_OOS.
-3. Nếu quant signal mâu thuẫn với định tính, hãy giải thích tại sao định tính 
-   quan trọng hơn trong trường hợp này (hoặc ngược lại).
-4. Phản biện trực tiếp từng điểm của Bear Analyst.
+**Yêu cầu**: Xây dựng lập luận BUY mạnh nhất có thể. Dùng bằng chứng cụ thể từ dữ liệu. Phản biện trực tiếp từng điểm của Bear. Thừa nhận điểm yếu nếu có — lập luận trung thực có sức thuyết phục hơn lập luận không thừa nhận hạn chế.
 
-Trình bày theo phong cách hội thoại tự nhiên."""
+Viết theo phong cách hội thoại tranh luận tự nhiên."""
 
         response = llm.invoke(prompt)
         argument = f"Bull Analyst: {response.content}"

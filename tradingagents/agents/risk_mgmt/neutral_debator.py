@@ -1,7 +1,5 @@
 """
 tradingagents/agents/risk_mgmt/neutral_debator.py
-
-FIX: Thêm _s() sanitizer để tránh lỗi 400 JSON malformed khi gửi lên OpenAI API.
 """
 import json
 
@@ -26,33 +24,36 @@ def create_neutral_debator(llm):
 
         alphagpt_context = ""
         if current_alphagpt_response:
-            alphagpt_context = f"\nTín hiệu định lượng AlphaGPT (tham khảo): {sanitize_for_prompt(current_alphagpt_response)}"
+            alphagpt_context = f"\nTín hiệu định lượng AlphaGPT: {sanitize_for_prompt(current_alphagpt_response)}"
 
         prompt = (
-            "Bạn là Neutral Risk Analyst. Vai trò của bạn là cung cấp góc nhìn cân bằng, cân nhắc cả "
-            "lợi ích tiềm năng lẫn rủi ro của quyết định/kế hoạch từ trader. Bạn ưu tiên cách tiếp "
-            "cận toàn diện: đánh giá cả mặt tích cực và tiêu cực, đồng thời xét thêm xu hướng thị "
-            "trường rộng hơn, dịch chuyển kinh tế có thể xảy ra và chiến lược đa dạng hóa. Đây là "
-            "quyết định của trader:\n\n"
-            f"    {sanitize_for_prompt(trader_decision)}\n"
-            f"    {sanitize_for_prompt(alphagpt_context)}\n\n"
-            "Nhiệm vụ của bạn là phản biện cả Risky Analyst và Safe Analyst, chỉ ra nơi mỗi bên có "
-            "thể quá lạc quan hoặc quá thận trọng. Nếu có tín hiệu AlphaGPT, hãy dùng như bằng chứng "
-            "trung lập để kiểm chứng cả hai hướng tranh luận. Hãy dùng dữ liệu sau:\n\n"
-            f"Báo cáo nghiên cứu thị trường: {sanitize_for_prompt(market_research_report)}\n"
-            f"Báo cáo tâm lý mạng xã hội: {sanitize_for_prompt(sentiment_report)}\n"
-            f"Báo cáo thời sự thế giới gần đây: {sanitize_for_prompt(news_report)}\n"
-            f"Báo cáo cơ bản doanh nghiệp: {sanitize_for_prompt(fundamentals_report)}\n"
-            f"Lịch sử hội thoại hiện tại: {sanitize_for_prompt(history)}\n"
-            f"Phản hồi gần nhất của Risky Analyst: {sanitize_for_prompt(current_risky_response)}\n"
-            f"Phản hồi gần nhất của Safe Analyst: {sanitize_for_prompt(current_safe_response)}\n"
-            "Nếu các góc nhìn còn lại chưa có phản hồi, không bịa nội dung; chỉ trình bày lập luận "
-            "của bạn.\n\n"
-            "Hãy chủ động phân tích phê phán cả hai phía, xử lý điểm yếu trong lập luận rủi ro cao "
-            "lẫn lập luận quá bảo thủ để bảo vệ một cách tiếp cận cân bằng hơn. Chất vấn từng luận "
-            "điểm của họ để cho thấy vì sao chiến lược rủi ro trung dung có thể dung hòa tăng trưởng "
-            "và kiểm soát biến động cực đoan. Trình bày theo phong cách hội thoại tự nhiên, không cần "
-            "định dạng đặc biệt."
+            "Bạn là Neutral Analyst trong nhóm quản lý rủi ro. Vai trò của bạn là đánh giá khách quan — "
+            "không có lập trường mặc định nào. Bạn chỉ ra điểm yếu của CẢ HAI bên và tổng hợp bức tranh toàn cảnh.\n\n"
+
+            "**Trọng tâm phân tích của bạn:**\n"
+            "- Luận điểm nào của Risky và Safe có bằng chứng thực sự, luận điểm nào chỉ là suy đoán?\n"
+            "- Bức tranh tổng thể từ góc nhìn risk/reward: upside và downside tương quan như thế nào?\n"
+            "- Tín hiệu AlphaGPT nói gì và mức độ tin cậy của nó?\n"
+            "- Điều kiện nào sẽ khiến kịch bản bull hoặc bear đúng?\n"
+            "- Có chiến lược nào phù hợp hơn BUY/SELL/HOLD thuần túy không (ví dụ: position sizing, staged entry)?\n\n"
+
+            "**Quan trọng**: Neutral không có nghĩa là luôn chọn HOLD. "
+            "Nếu bằng chứng rõ ràng nghiêng về một phía, hãy nói thẳng.\n\n"
+
+            f"Kế hoạch của Trader:\n{sanitize_for_prompt(trader_decision)}\n"
+            f"{sanitize_for_prompt(alphagpt_context)}\n\n"
+
+            f"Dữ liệu thị trường: {sanitize_for_prompt(market_research_report)}\n"
+            f"Tâm lý: {sanitize_for_prompt(sentiment_report)}\n"
+            f"Tin tức: {sanitize_for_prompt(news_report)}\n"
+            f"Cơ bản: {sanitize_for_prompt(fundamentals_report)}\n"
+            f"Lịch sử tranh luận: {sanitize_for_prompt(history)}\n"
+            f"Risky Analyst: {sanitize_for_prompt(current_risky_response)}\n"
+            f"Safe Analyst: {sanitize_for_prompt(current_safe_response)}\n\n"
+
+            "Đánh giá khách quan cả hai bên. Chỉ ra điểm yếu cụ thể của mỗi bên. "
+            "Tổng hợp bức tranh risk/reward một cách trung thực. "
+            "Viết theo phong cách hội thoại tự nhiên."
         )
 
         response = llm.invoke(prompt)

@@ -26,7 +26,6 @@ def get_stock_data(
 def get_market_context(
     ticker: Annotated[str, "ticker symbol đang phân tích"],
     curr_date: Annotated[str, "ngày tham chiếu YYYY-mm-dd"],
-    look_back_days: Annotated[int, "số phiên lùi để đánh giá xu hướng"] = 7,
 ) -> str:
-    """Retrieve VN30 market trend and breadth context for the reference date."""
-    return route_to_vendor("get_market_context", ticker, curr_date, look_back_days)
+    """Retrieve market trend and breadth context"""
+    return route_to_vendor("get_market_context", ticker, curr_date)

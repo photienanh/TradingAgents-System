@@ -1,6 +1,5 @@
 """
 tradingagents/agents/trader/trader.py
-Thêm quant_report để Trader có thêm evidence định lượng khi ra plan.
 """
 
 import functools
@@ -11,6 +10,7 @@ from tradingagents.agents.utils.text_sanitize import sanitize_for_prompt
 def create_trader(llm, memory):
     def trader_node(state, name):
         company_name   = state["company_of_interest"]
+        trade_date     = state.get("trade_date", "N/A")
         investment_plan = state["investment_plan"]
         market_research_report = state["market_report"]
         sentiment_report       = state["sentiment_report"]
@@ -32,17 +32,21 @@ def create_trader(llm, memory):
             {
                 "role": "system",
                 "content": (
-                    f"Bạn là trading agent phân tích dữ liệu thị trường để đưa ra "
-                    f"quyết định đầu tư. Bạn có hai nguồn thông tin bổ sung cho nhau:\n\n"
-                    f"1. QUANT SIGNAL (AlphaGPT): tín hiệu thống kê từ price/volume history, "
-                    f"đã validate trên out-of-sample data. IC_OOS và Sharpe_OOS là các chỉ số "
-                    f"đáng tin cậy. Hãy sử dụng chúng để calibrate độ tự tin và position size.\n\n"
-                    f"2. QUALITATIVE ANALYSIS: fundamental, news, sentiment — cung cấp context "
-                    f"mà quant model không thể nắm bắt được.\n\n"
-                    f"Dựa trên phân tích tổng hợp, hãy đưa ra một khuyến nghị cụ thể: "
-                    f"buy, sell hoặc hold. Phần kết luận phải rõ ràng và bắt buộc kết thúc "
-                    f"bằng đúng cú pháp 'FINAL TRANSACTION PROPOSAL: **BUY/HOLD/SELL**'.\n\n"
-                    f"Phản tư từ tình huống tương tự: {sanitize_for_prompt(past_memory_str)}"
+                    f"Bạn là Trader — người xây dựng kế hoạch giao dịch chi tiết cho {sanitize_for_prompt(company_name)}.\n\n"
+
+                    "## NGUYÊN TẮC TRUNG LẬP (BẮT BUỘC)\n"
+                    "BUY, SELL và HOLD đều là các hành động hợp lệ với xác suất ngang nhau.\n"
+                    "Nhiệm vụ của bạn là đưa ra kế hoạch giao dịch dựa trên bằng chứng — không phải theo xu hướng hay áp lực.\n\n"
+
+                    "## CÁCH SỬ DỤNG DỮ LIỆU\n"
+                    "Bạn có hai nguồn thông tin:\n"
+                    "1. **Quant Signal (AlphaGPT)**: Tín hiệu thống kê từ backtest, validate trên OOS data. "
+                    "IC_OOS và Sharpe_OOS là chỉ số định lượng.\n"
+                    "2. **Qualitative Analysis**: Fundamental, news, sentiment — cung cấp context mà quant không nắm được.\n\n"
+                    "Khi hai nguồn đồng thuận → tự tin hơn.\n"
+                    "Khi hai nguồn mâu thuẫn → phân tích nguyên nhân, không tự động theo một bên nào.\n\n"
+
+                    f"Bài học từ tình huống tương tự: {sanitize_for_prompt(past_memory_str)}"
                 ),
             },
             {
@@ -50,18 +54,37 @@ def create_trader(llm, memory):
                 "content": (
                     f"## Quant Signal (AlphaGPT)\n{sanitize_for_prompt(quant_report)}\n\n"
                     f"## Kế hoạch từ Research team\n{sanitize_for_prompt(investment_plan)}\n\n"
-                    f"Hãy tổng hợp cả hai nguồn để đưa ra trading decision cho {sanitize_for_prompt(company_name)}. "
-                    f"Nếu quant signal và qualitative đồng thuận, hãy tự tin hơn. "
-                    f"Nếu mâu thuẫn, hãy giải thích rõ tại sao bạn chọn hướng nào."
+
+                    f"Hãy xây dựng kế hoạch giao dịch theo format sau:\n\n"
+
+                    f"### Kế Hoạch Giao Dịch — {sanitize_for_prompt(company_name)} — {trade_date}\n\n"
+
+                    "#### Tổng Hợp Tín Hiệu\n"
+                    "- **Quant signal**: [hướng, IC_OOS, mức độ tin cậy]\n"
+                    "- **Research team**: [quyết định và lý do chính]\n"
+                    "- **Mức độ đồng thuận**: [đồng thuận / mâu thuẫn, giải thích]\n\n"
+
+                    "#### Đề Xuất Hành Động: **[BUY / SELL / HOLD]**\n\n"
+
+                    "#### Lý Do\n"
+                    "[2-3 lý do chính dựa trên bằng chứng từ cả quant và qualitative]\n\n"
+
+                    "#### Thông Số Giao Dịch\n"
+                    "- Khung thời gian nắm giữ: [ngắn/trung/dài hạn, ước lượng]\n"
+                    "- Mức giá quan tâm: [nếu BUY: vùng mua; nếu SELL: vùng bán; nếu HOLD: mức thoát lỗ]\n"
+                    "- Điều kiện thoát: [khi nào nên xem xét đóng vị thế]\n\n"
+
+                    "#### Rủi Ro Cần Theo Dõi\n"
+                    "[2-3 rủi ro quan trọng nhất có thể thay đổi kịch bản]"
                 ),
             },
         ]
 
         result = llm.invoke(messages)
         return {
-            "messages":             [result],
+            "messages":               [result],
             "trader_investment_plan": result.content,
-            "sender":               name,
+            "sender":                 name,
         }
 
     return functools.partial(trader_node, name="Trader")

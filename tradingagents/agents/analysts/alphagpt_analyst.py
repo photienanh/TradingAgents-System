@@ -321,11 +321,16 @@ def _build_llm_prompt(raw: dict) -> str:
         if a["flipped"]:      tags.append("FLIPPED")
         tag_str = f" [{', '.join(tags)}]" if tags else ""
         family_display = a['family'] if a['family'].upper() != 'UNKNOWN' else a.get('idea', 'unknown')[:30]
+        family_line = (
+            f"  Loại: {a['family']} — {a['family_desc']}"
+            if str(a.get('family', '')).upper() != 'UNKNOWN' and a.get('family_desc')
+            else ""
+        )
         block = f"""
   Alpha {a['id']} — {family_display}{tag_str} (trọng số {a['weight_pct']}%)
   Ý tưởng: {a['idea']}
   Cơ sở kinh tế: {a['hypothesis']}
-  Loại: {a['family']} — {a['family_desc']}
+{family_line}
   Formula: {a['expression']}
   
   Số liệu hiệu suất:

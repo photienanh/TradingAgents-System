@@ -21,23 +21,51 @@ def create_research_manager(llm, memory):
         for i, rec in enumerate(past_memories, 1):
             past_memory_str += rec["recommendation"] + "\n\n"
 
-        prompt = f"""Với vai trò Quản lý danh mục kiêm Điều phối tranh luận, nhiệm vụ của bạn là đánh giá phản biện một cách chặt chẽ và đưa ra quyết định dứt khoát: nghiêng về Bear, nghiêng về Bull, hoặc chọn Hold khi có căn cứ rất mạnh từ các lập luận đã nêu.
+        prompt = f"""Bạn là Research Manager — người tổng hợp kết quả tranh luận và đưa ra quyết định đầu tư.
 
-    Hãy tóm tắt ngắn gọn các luận điểm quan trọng của hai phía, tập trung vào bằng chứng/lập luận thuyết phục nhất. Khuyến nghị cuối cùng (Buy, Sell hoặc Hold) phải rõ ràng và có thể hành động. Hãy chốt phương án dựa trên các luận điểm mạnh nhất trong cuộc tranh luận.
+## NGUYÊN TẮC TRUNG LẬP (BẮT BUỘC)
+Quyết định BUY, SELL và HOLD đều có giá trị ngang nhau. Không có hướng nào là "mặc định" hay "an toàn hơn". Chỉ dữ liệu và lập luận quyết định kết quả.
 
-    Ngoài ra, hãy xây dựng một kế hoạch đầu tư chi tiết cho trader, bao gồm:
+## TIÊU CHUẨN ĐƯA RA QUYẾT ĐỊNH
+- **BUY**: Bull có bằng chứng cụ thể, thuyết phục hơn Bear về tiềm năng tăng giá
+- **SELL**: Bear có bằng chứng cụ thể, thuyết phục hơn Bull về rủi ro giảm giá hoặc cơ hội cơ hội chi phí
+- **HOLD**: Bằng chứng hai bên cân bằng nhau, chưa có catalyst rõ ràng để hành động
 
-    Khuyến nghị cuối cùng: Quan điểm dứt khoát dựa trên các luận điểm thuyết phục nhất.
-    Cơ sở kết luận: Giải thích vì sao các luận điểm đó dẫn đến quyết định của bạn.
-    Hành động chiến lược: Các bước cụ thể để triển khai khuyến nghị.
-    Hãy tính đến các sai lầm trước đây trong bối cảnh tương tự. Dùng các bài học này để cải thiện chất lượng ra quyết định và thể hiện bạn đang học hỏi liên tục. Trình bày tự nhiên theo văn phong hội thoại, không cần định dạng cầu kỳ.
+## QUY TRÌNH ĐÁNH GIÁ
+1. Xác định luận điểm mạnh nhất của Bull và luận điểm mạnh nhất của Bear
+2. Đánh giá chất lượng bằng chứng: dữ liệu cụ thể > ý kiến chủ quan
+3. Xét bài học từ các tình huống tương tự trong quá khứ
+4. Đưa ra quyết định dựa trên bên có bằng chứng thuyết phục hơn
 
-    Các phản tư sai lầm trong quá khứ:
-    \"{sanitize_for_prompt(past_memory_str)}\"
+Bài học từ quá khứ:
+"{sanitize_for_prompt(past_memory_str)}"
 
-    Nội dung tranh luận:
-    Lịch sử tranh luận:
-    {sanitize_for_prompt(history)}"""
+Lịch sử tranh luận:
+{sanitize_for_prompt(history)}
+
+## YÊU CẦU OUTPUT (BẮT BUỘC tuân theo format)
+
+### Quyết Định Nhóm Nghiên Cứu — {{ticker}} — {{date}}
+
+#### Tóm Tắt Tranh Luận
+**Bull:** [Luận điểm mạnh nhất, bằng chứng cụ thể]
+**Bear:** [Luận điểm mạnh nhất, bằng chứng cụ thể]
+
+#### Đánh Giá
+[2-3 câu phân tích tại sao một bên thuyết phục hơn, hoặc tại sao bằng chứng cân bằng]
+
+#### Quyết Định: **[BUY / SELL / HOLD]**
+
+#### Kế Hoạch Hành Động
+- Lý do chính: [1-2 lý do quyết định]
+- Điều kiện để xem xét lại: [Điều gì sẽ thay đổi quyết định này]
+- Rủi ro chính cần theo dõi: [1-2 rủi ro quan trọng nhất]"""
+
+        # Format ticker and date into the prompt
+        ticker = state.get("company_of_interest", "N/A")
+        trade_date = state.get("trade_date", "N/A")
+        prompt = prompt.replace("{ticker}", ticker).replace("{date}", trade_date)
+
         response = llm.invoke(prompt)
 
         new_investment_debate_state = {

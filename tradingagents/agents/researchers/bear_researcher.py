@@ -24,28 +24,34 @@ def create_bear_researcher(llm, memory):
         for i, rec in enumerate(past_memories, 1):
             past_memory_str += rec["recommendation"] + "\n\n"
 
-        prompt = f"""Bạn là Bear Analyst, có nhiệm vụ lập luận phản đối việc đầu tư vào cổ phiếu này. Mục tiêu của bạn là đưa ra lập luận chặt chẽ, nhấn mạnh rủi ro, thách thức và các tín hiệu tiêu cực. Hãy tận dụng dữ liệu nghiên cứu được cung cấp để làm rõ các mặt bất lợi và phản biện hiệu quả các luận điểm phe Bull.
+        prompt = f"""Bạn là Bear Analyst trong cuộc tranh luận đầu tư. Nhiệm vụ của bạn là xây dựng lập luận SHORT/AVOID (bán hoặc không mua) thuyết phục nhất có thể, dựa trên bằng chứng từ dữ liệu được cung cấp.
 
-    Các trọng tâm cần tập trung:
+## Dữ liệu có sẵn
+Báo cáo thị trường: {sanitize_for_prompt(market_research_report)}
+Tâm lý mạng xã hội: {sanitize_for_prompt(sentiment_report)}
+Tin tức: {sanitize_for_prompt(news_report)}
+Cơ bản doanh nghiệp: {sanitize_for_prompt(fundamentals_report)}
 
-    - Rủi ro và thách thức: Nêu rõ các yếu tố như bão hòa thị trường, bất ổn tài chính, hoặc rủi ro vĩ mô có thể cản trở hiệu quả cổ phiếu.
-    - Điểm yếu cạnh tranh: Nhấn mạnh các lỗ hổng như vị thế thị trường yếu hơn, đổi mới suy giảm, hoặc áp lực từ đối thủ.
-    - Tín hiệu tiêu cực: Dùng bằng chứng từ dữ liệu tài chính, xu hướng thị trường, hoặc tin bất lợi gần đây để củng cố lập luận.
-    - Phản biện phe Bull: Phân tích kỹ lập luận Bull bằng dữ liệu cụ thể và lập luận logic, chỉ ra điểm yếu hoặc giả định quá lạc quan.
-    - Tính tương tác: Trình bày theo phong cách tranh luận hội thoại, bám sát các điểm của phe Bull thay vì chỉ liệt kê thông tin.
+## Lịch sử tranh luận
+{sanitize_for_prompt(history)}
 
-    Nguồn dữ liệu có sẵn:
+## Luận điểm Bull gần nhất (cần phản biện)
+{sanitize_for_prompt(current_response)}
 
-    Báo cáo thị trường: {sanitize_for_prompt(market_research_report)}
-    Báo cáo tâm lý mạng xã hội: {sanitize_for_prompt(sentiment_report)}
-    Tin tức thế giới gần đây: {sanitize_for_prompt(news_report)}
-    Báo cáo cơ bản doanh nghiệp: {sanitize_for_prompt(fundamentals_report)}
-    Lịch sử tranh luận: {sanitize_for_prompt(history)}
-    Luận điểm Bull gần nhất: {sanitize_for_prompt(current_response)}
-    Phản tư từ các tình huống tương tự và bài học rút ra: {sanitize_for_prompt(past_memory_str)}
+## Bài học quá khứ
+{sanitize_for_prompt(past_memory_str)}
 
-    Hãy dùng các thông tin trên để xây dựng lập luận Bear thuyết phục, phản bác hiệu quả các tuyên bố của phe Bull và duy trì một cuộc tranh luận sắc nét làm rõ rủi ro cũng như điểm yếu của quyết định đầu tư. Đồng thời, bạn phải tận dụng phần phản tư để học từ sai lầm trong quá khứ và cải thiện chất lượng lập luận hiện tại.
-    """
+---
+
+**Yêu cầu**: Xây dựng lập luận SHORT/AVOID mạnh nhất có thể. Tập trung vào:
+- Rủi ro cụ thể và có bằng chứng (không phải lo ngại chung chung)
+- Điểm yếu trong lập luận của Bull: giả định nào là sai, số liệu nào đang bị diễn giải lạc quan quá mức
+- Tín hiệu tiêu cực: Dùng bằng chứng từ dữ liệu tài chính, xu hướng thị trường, hoặc tin bất lợi gần đây để củng cố lập luận.
+- Chi phí cơ hội: tại sao capital nên được deploy ở nơi khác
+
+Phản biện trực tiếp từng điểm của Bull. Thừa nhận điểm mạnh của họ nếu có — lập luận trung thực có sức thuyết phục hơn.
+
+Viết theo phong cách hội thoại tranh luận tự nhiên."""
 
         response = llm.invoke(prompt)
 

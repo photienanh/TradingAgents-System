@@ -10,7 +10,6 @@ def create_market_analyst(llm):
     def market_analyst_node(state):
         current_date = state["trade_date"]
         ticker = state["company_of_interest"]
-        company_name = state["company_of_interest"]
 
         tools = [
             get_stock_data,
@@ -19,8 +18,17 @@ def create_market_analyst(llm):
         ]
 
         system_message = (
-            """Bạn là trợ lý giao dịch có nhiệm vụ phân tích thị trường tài chính. Vai trò của bạn là chọn ra các chỉ báo **phù hợp nhất** cho bối cảnh thị trường hoặc chiến lược giao dịch hiện tại từ danh sách bên dưới. Mục tiêu là chọn tối đa **8 chỉ báo** mang tính bổ trợ, tránh trùng lặp thông tin. Danh mục và ý nghĩa từng chỉ báo:
+            """Bạn là Market Analyst chuyên nghiệp - trợ lý giao dịch có nhiệm vụ phân tích thị trường tài chính. Nhiệm vụ DUY NHẤT của bạn là thu thập và phân tích dữ liệu thị trường kỹ thuật. Bạn KHÔNG đưa ra khuyến nghị giao dịch (BUY/SELL/HOLD).
 
+Hãy phân tích toàn diện các khía cạnh kỹ thuật của mã cổ phiếu, bao gồm:
+- Xu hướng giá (ngắn hạn, trung hạn, dài hạn)
+- Các chỉ báo kỹ thuật và tín hiệu của chúng
+- Mức hỗ trợ/kháng cự quan trọng
+- Khối lượng giao dịch và ý nghĩa
+- Bối cảnh thị trường chung (VN30, breadth)
+- Các rủi ro kỹ thuật cần lưu ý
+
+Hãy chọn tối đa 8 chỉ báo phù hợp nhất từ danh sách sau:
 Moving Averages:
 - close_50_sma: SMA 50 phiên: chỉ báo xu hướng trung hạn. Cách dùng: xác định hướng xu hướng, làm hỗ trợ/kháng cự động. Lưu ý: có độ trễ, nên kết hợp chỉ báo nhanh hơn.
 - close_200_sma: SMA 200 phiên: mốc xu hướng dài hạn. Cách dùng: xác nhận xu hướng tổng thể, nhận diện golden/death cross. Lưu ý: phản ứng chậm, hợp cho xác nhận chiến lược.
@@ -43,29 +51,48 @@ Volatility Indicators:
 Volume-Based Indicators:
 - vwma: VWMA: trung bình động có trọng số khối lượng, dùng để xác nhận xu hướng theo giá + volume.
 
-- Hãy chọn chỉ báo đa dạng, bổ trợ nhau và tránh dư thừa (ví dụ: không chọn cả rsi và stochrsi cùng lúc).
-- Khi gọi tool, phải dùng **đúng tên chỉ báo** như đã định nghĩa ở trên, nếu sai tên lời gọi sẽ thất bại.
-- Bắt buộc gọi get_stock_data trước để lấy CSV đầu vào, sau đó mới gọi get_indicators với danh sách chỉ báo cụ thể.
-- Bắt buộc gọi get_market_context(ticker, current_date, 7) để lấy xu hướng VN30/ticker và breadth tăng-giảm trong ngày + 7 phiên.
-- Ràng buộc thời gian dữ liệu giá: end_date của get_stock_data phải bằng current_date hoặc sớm hơn tối đa 7 ngày giao dịch; start_date nên trong khoảng 30-180 ngày trước end_date.
-- Không tự ý lấy giai đoạn cũ nhiều năm (ví dụ năm 2023) nếu current_date là năm hiện tại, trừ khi người dùng yêu cầu backtest rõ ràng.
-- Viết báo cáo chi tiết, có chiều sâu, nêu xu hướng và insight có thể hành động; không kết luận chung chung kiểu "xu hướng trái chiều".
-"""
-            + """ Cuối báo cáo, bắt buộc thêm một bảng Markdown tổng hợp các điểm chính để dễ đọc và dễ đối chiếu."""
+Quy tắc sử dụng tool:
+- Gọi get_stock_data trước để lấy dữ liệu OHLCV
+- Gọi get_indicators với danh sách chỉ báo cụ thể, lưu ý dùng đúng tên chỉ báo như đã định nghĩa ở trên. Chọn chỉ báo đa dạng, bổ trợ nhau và tránh dư thừa 
+- Gọi get_market_context(ticker, current_date) để lấy bối cảnh thị trường VN30 trong thời gian gần đây
+- end_date của get_stock_data phải bằng hoặc trước current_date tối đa 7 ngày giao dịch, ưu tiên end_date gần current_date nhất để có dữ liệu cập nhật nhất (nhưng tránh ngày nghỉ giao dịch). start_date nên trong khoảng 30-180 ngày trước end_date.
+
+## Cấu trúc báo cáo (BẮT BUỘC tuân theo)
+
+### Phân Tích Thị Trường — {ticker} — {current_date}
+
+#### 1. Tổng Quan Giá
+[Mô tả biến động giá gần đây, các mức giá quan trọng]
+
+#### 2. Xu Hướng
+[Phân tích xu hướng ngắn/trung/dài hạn, so sánh với VN30]
+
+#### 3. Chỉ Báo Kỹ Thuật
+[Phân tích từng chỉ báo đã chọn, ý nghĩa tín hiệu]
+
+#### 4. Hỗ Trợ & Kháng Cự
+[Các mức giá then chốt cần chú ý]
+
+#### 5. Khối Lượng & Breadth
+[Phân tích volume, so sánh với breadth VN30]
+
+#### 6. Rủi Ro Kỹ Thuật
+[Các yếu tố rủi ro từ góc độ kỹ thuật]
+
+| Chỉ Báo | Giá Trị | Tín Hiệu | Mức Độ |
+|---------|---------|----------|--------|
+[Bảng tổng hợp các chỉ báo chính]"""
         )
 
         prompt = ChatPromptTemplate.from_messages(
             [
                 (
                     "system",
-                    "Bạn là trợ lý AI hỗ trợ, đang cộng tác với các trợ lý khác."
-                    " Hãy dùng các công cụ được cung cấp để tiến gần tới câu trả lời."
-                    " Nếu bạn chưa thể trả lời đầy đủ, không sao; một trợ lý khác với bộ công cụ khác"
-                    " sẽ tiếp tục từ phần bạn dừng lại. Hãy thực hiện tối đa phần bạn có thể để tạo tiến triển."
-                    " Nếu bạn hoặc bất kỳ trợ lý nào đã có FINAL TRANSACTION PROPOSAL: **BUY/HOLD/SELL** hoặc deliverable,"
-                    " hãy thêm đúng tiền tố FINAL TRANSACTION PROPOSAL: **BUY/HOLD/SELL** để cả nhóm biết và dừng lại."
+                    "Bạn là Market Analyst đang thu thập và phân tích dữ liệu kỹ thuật."
+                    " Hãy dùng các công cụ được cung cấp để lấy đầy đủ dữ liệu cần thiết."
+                    " Nhiệm vụ của bạn là cung cấp phân tích kỹ thuật khách quan, chi tiết — KHÔNG đưa ra khuyến nghị BUY/SELL/HOLD."
                     " Bạn có quyền truy cập các công cụ sau: {tool_names}.\n{system_message}"
-                    " Tham chiếu: ngày hiện tại là {current_date}. Công ty cần phân tích là {ticker}",
+                    " Ngày hiện tại: {current_date}. Mã cần phân tích: {ticker}",
                 ),
                 MessagesPlaceholder(variable_name="messages"),
             ]
@@ -77,14 +104,12 @@ Volume-Based Indicators:
         prompt = prompt.partial(ticker=ticker)
 
         chain = prompt | llm.bind_tools(tools)
-
         result = chain.invoke(state["messages"])
 
         report = ""
-
         if len(result.tool_calls) == 0:
             report = result.content
-       
+
         return {
             "messages": [result],
             "market_report": report,

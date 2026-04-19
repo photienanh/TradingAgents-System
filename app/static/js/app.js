@@ -7,6 +7,17 @@ let statusCheckInterval    = null;
 let isReviewingHistoricalSession = false;
 let activePollingSessionId = null;
 
+// Keys cho các decision sections (hiển thị badge BUY/SELL/HOLD)
+const DECISION_SECTION_KEYS = new Set([
+    'investment_plan',
+    'trader_investment_plan',
+    'final_trade_decision',
+    // Tên label tương ứng
+    'Quyết định nhóm nghiên cứu',
+    'Kế hoạch nhóm giao dịch',
+    'Quyết định cuối cùng',
+]);
+
 document.addEventListener('DOMContentLoaded', () => {
     loadSessions();
     setupFormHandlers();
@@ -66,7 +77,8 @@ function buildSectionConfig(titles) {
         trader_investment_plan: '#f97316',
         final_trade_decision:   '#dc2626',
     };
-    const DECISION_KEYS = ['investment_plan', 'trader_investment_plan', 'final_trade_decision'];
+    // Chỉ các section này mới hiển thị badge BUY/SELL/HOLD
+    const DECISION_KEYS = new Set(['investment_plan', 'trader_investment_plan', 'final_trade_decision']);
  
     const labelMap   = {};
     const labelOrder = [];
@@ -74,12 +86,12 @@ function buildSectionConfig(titles) {
         labelMap[label] = {
             key,
             color:      KEY_COLORS[key] || '#6366f1',
-            isDecision: DECISION_KEYS.includes(key),
+            isDecision: DECISION_KEYS.has(key),
         };
         labelOrder.push(label);
     }
     labelOrder.sort((a, b) => b.length - a.length);
-    return { labelMap, labelOrder, titles, KEY_COLORS };
+    return { labelMap, labelOrder, titles, KEY_COLORS, DECISION_KEYS };
 }
  
 async function renderReport(md) {
@@ -92,7 +104,6 @@ function _renderReport(md, cfg) {
     const text = sanitizeReportText(md);
  
     // ── Step 1: Tách ## ===== DECISION ===== ra TRƯỚC mọi thứ khác
-    // Làm trước normalize để tránh ## bị thay đổi
     const decisionBlocks = [];
     let cleaned = text;
     const decisionHit = /^##\s+=====\s*/im.exec(cleaned);
@@ -108,7 +119,6 @@ function _renderReport(md, cfg) {
     cleaned = cleaned.replace(/^##\s+Báo cáo nhóm phân tích\s*\n?/im, '');
  
     // ── Step 3: Normalize "## Tên section" → "### Tên section"
-    // Chỉ áp dụng cho analyst section labels, không phải ## ===== (đã tách rồi)
     cfg.labelOrder.forEach(label => {
         const esc = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         cleaned = cleaned.replace(
@@ -137,7 +147,6 @@ function _renderReport(md, cfg) {
         }
  
         if (!matchedLabel) {
-            // Phần header/metadata — chỉ hiện nếu có nội dung thực
             const stripped = chunk.replace(/^#+\s*.+$/gm, '').replace(/[-\s|:]/g, '');
             if (stripped.length > 30) {
                 html += `<div class="report-body" style="margin-bottom:1.5rem;">${marked.parse(chunk)}</div>`;
@@ -152,14 +161,13 @@ function _renderReport(md, cfg) {
         html += renderSectionBlock(matchedLabel, body, meta.color, meta.isDecision, cfg);
     }
  
-    // ── Step 5: Render decision blocks
+    // ── Step 5: Render decision blocks (luôn có badge)
     for (const blk of decisionBlocks) {
         const titleMatch = blk.match(/^##\s+=====\s*(.+?)\s*=====\s*$/im);
         if (!titleMatch) continue;
         const title = titleMatch[1].trim();
         const body  = blk.replace(/^##\s+=====.+=====\s*\n/im, '').trim();
  
-        // Tìm màu: thử match label map trước, rồi fallback theo keyword
         let color = '#ef4444';
         for (const [label, meta] of Object.entries(cfg.labelMap)) {
             if (title.toLowerCase().includes(label.toLowerCase().slice(0, 8))) {
@@ -176,70 +184,61 @@ function _renderReport(md, cfg) {
 }
  
 function renderSectionBlock(label, body, color, isDecision, cfg) {
-    // Tìm recommendation/decision trong nhiều định dạng và loại khỏi body.
-    // Dùng quyết định cuối cùng để render badge.
     let cleanBody = body;
     let badge = '';
 
-    const actionRe = /\b(BUY|SELL|HOLD)\b/i;
-    const explicitDecisionPatterns = [
-        /^\s{0,3}>?\s*\*{0,2}\s*FINAL\s+TRANSACTION\s+PROPOSAL\s*:\s*\*{0,2}\s*(BUY|SELL|HOLD)\b.*$/gim,
-        /^\s{0,3}>?\s*\*{0,2}\s*RECOMMENDATION\s*:\s*\*{0,2}\s*(BUY|SELL|HOLD)\b.*$/gim,
-        /^\s{0,3}>?\s*\*{0,2}\s*Khuyến\s*nghị(?:\s+cuối\s+cùng)?\s*:\s*\*{0,2}\s*(BUY|SELL|HOLD)\b.*$/gim,
-        /^\s{0,3}>?\s*\*{0,2}\s*Khuyen\s*nghi(?:\s+cuoi\s+cung)?\s*:\s*\*{0,2}\s*(BUY|SELL|HOLD)\b.*$/gim,
-        /^\s{0,3}>?\s*\*{0,2}\s*Quyết\s*định(?:\s+cuối\s+cùng)?\s*:\s*\*{0,2}\s*(BUY|SELL|HOLD)\b.*$/gim,
-        /^\s{0,3}>?\s*\*{0,2}\s*Quyet\s*dinh(?:\s+cuoi\s+cung)?\s*:\s*\*{0,2}\s*(BUY|SELL|HOLD)\b.*$/gim,
-    ];
+    // Chỉ tìm và hiển thị badge BUY/SELL/HOLD cho decision sections
+    // Analyst sections (market, news, sentiment, fundamentals, quant) KHÔNG có badge
+    if (isDecision) {
+        const actionRe = /\b(BUY|SELL|HOLD)\b/i;
+        const explicitDecisionPatterns = [
+            /^\s{0,3}>?\s*\*{0,2}\s*FINAL\s+TRANSACTION\s+PROPOSAL\s*:\s*\*{0,2}\s*(BUY|SELL|HOLD)\b.*$/gim,
+            /^\s{0,3}>?\s*\*{0,2}\s*RECOMMENDATION\s*:\s*\*{0,2}\s*(BUY|SELL|HOLD)\b.*$/gim,
+            /^\s{0,3}>?\s*\*{0,2}\s*Khuyến\s*nghị(?:\s+cuối\s+cùng)?\s*:\s*\*{0,2}\s*(BUY|SELL|HOLD)\b.*$/gim,
+            /^\s{0,3}>?\s*\*{0,2}\s*Khuyen\s*nghi(?:\s+cuoi\s+cung)?\s*:\s*\*{0,2}\s*(BUY|SELL|HOLD)\b.*$/gim,
+            /^\s{0,3}>?\s*\*{0,2}\s*Quyết\s*định(?:\s+cuối\s+cùng)?\s*:\s*\*{0,2}\s*(BUY|SELL|HOLD)\b.*$/gim,
+            /^\s{0,3}>?\s*\*{0,2}\s*Quyet\s*dinh(?:\s+cuoi\s+cung)?\s*:\s*\*{0,2}\s*(BUY|SELL|HOLD)\b.*$/gim,
+            // New structured format from updated prompts
+            /^\s{0,3}####\s+(?:Quyết\s*Định|Đề\s*Xuất\s*Hành\s*Động)\s*:\s*\*{0,2}\s*(BUY|SELL|HOLD)\b.*$/gim,
+            /^\s{0,3}####\s+Quyết\s*Định\s*:\s*\*{1,2}(BUY|SELL|HOLD)\*{1,2}/gim,
+        ];
 
-    let latestDecision = '';
-    const linesToRemove = new Set();
-    const lines = String(body || '').split('\n');
+        let latestDecision = '';
+        const linesToRemove = new Set();
+        const lines = String(body || '').split('\n');
 
-    explicitDecisionPatterns.forEach((re) => {
-        let m;
-        while ((m = re.exec(String(body || ''))) !== null) {
-            if (m[1]) latestDecision = m[1].toUpperCase();
-            const matchedLine = m[0].trim();
+        explicitDecisionPatterns.forEach((re) => {
+            let m;
+            while ((m = re.exec(String(body || ''))) !== null) {
+                if (m[1]) latestDecision = m[1].toUpperCase();
+                const matchedLine = m[0].trim();
+                for (const line of lines) {
+                    if (line.trim() === matchedLine) linesToRemove.add(line);
+                }
+            }
+        });
+
+        // Fallback: tìm dòng có nhãn quyết định + ':' + đúng 1 action
+        if (!latestDecision) {
             for (const line of lines) {
-                if (line.trim() === matchedLine) linesToRemove.add(line);
+                const normalized = line.replace(/[>*_`#-]/g, ' ').replace(/\s+/g, ' ').trim();
+                const hasLabel = /(final\s+transaction\s+proposal|recommendation|khuyến\s*nghị|khuyen\s*nghi|quyết\s*định|quyet\s*dinh|đề\s*xuất\s*hành\s*động)/i.test(normalized);
+                const hasColon = normalized.includes(':');
+                const actions = [...normalized.matchAll(/\b(BUY|SELL|HOLD)\b/gi)].map(v => v[1].toUpperCase());
+                const uniqueActions = [...new Set(actions)];
+                if (hasLabel && hasColon && uniqueActions.length === 1) {
+                    latestDecision = uniqueActions[0];
+                    linesToRemove.add(line);
+                }
             }
         }
-    });
 
-    // Fallback: chỉ nhận dòng có nhãn quyết định + dấu ':' + đúng 1 action.
-    if (!latestDecision) {
-        for (const line of lines) {
-            const normalized = line.replace(/[>*_`#-]/g, ' ').replace(/\s+/g, ' ').trim();
-            const hasLabel = /(final\s+transaction\s+proposal|recommendation|khuyến\s*nghị|khuyen\s*nghi|quyết\s*định|quyet\s*dinh)/i.test(normalized);
-            const hasColon = normalized.includes(':');
-            const actions = [...normalized.matchAll(/\b(BUY|SELL|HOLD)\b/gi)].map(v => v[1].toUpperCase());
-            const uniqueActions = [...new Set(actions)];
-            if (hasLabel && hasColon && uniqueActions.length === 1) {
-                latestDecision = uniqueActions[0];
-                linesToRemove.add(line);
-            }
-        }
+        const keptLines = lines.filter(line => !linesToRemove.has(line));
+        cleanBody = keptLines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+
+        if (latestDecision) badge = makeDecisionBadge(latestDecision);
     }
-
-    const keptLines = lines.filter(line => !linesToRemove.has(line));
-    cleanBody = keptLines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
-
-    // Dọn thêm heading marker quyết định độc lập (không chứa action value)
-    cleanBody = cleanBody
-        .split('\n')
-        .filter((line) => {
-            const normalized = line.replace(/[>*_`#-]/g, ' ').replace(/\s+/g, ' ').trim();
-            const isMarkerOnly = /(khuyến\s*nghị|khuyen\s*nghi|quyết\s*định|quyet\s*dinh|recommendation)/i.test(normalized)
-                && !actionRe.test(normalized)
-                && normalized.length <= 64;
-            return !isMarkerOnly;
-        })
-        .join('\n')
-        .replace(/\n{3,}/g, '\n\n')
-        .trim();
-
-    if (latestDecision) badge = makeDecisionBadge(latestDecision);
- 
+    // isDecision === false: analyst sections - không tìm badge, không xóa dòng nào
  
     const bodyHtml = marked.parse(normalizeBodyHeadings(cleanBody));
     const pad = isDecision
@@ -759,14 +758,12 @@ async function deleteSession(sessionId) {
         const resp = await fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' });
         if (!resp.ok) throw new Error('Failed to delete session');
 
-        // Nếu đang xem session này trong modal thì đóng modal
         if (isReviewingHistoricalSession && currentSessionId === sessionId) {
             currentSessionId             = null;
             isReviewingHistoricalSession = false;
             closeSessionReviewModal();
         }
 
-        // Refresh danh sách
         loadSessions();
     } catch (err) {
         console.error('Error deleting session:', err);

@@ -319,39 +319,57 @@ def _day_change(df: pd.DataFrame, ref_ts: pd.Timestamp) -> dict:
         "status": direction,
     }
  
+def _filter_window(df: pd.DataFrame, ref_dt: datetime, days: int) -> pd.DataFrame:
+    """Lọc DataFrame chỉ lấy dữ liệu trong khoảng [ref_dt - days, ref_dt]."""
+    start_ts = pd.Timestamp(ref_dt - timedelta(days=days)).normalize()
+    end_ts   = pd.Timestamp(ref_dt).normalize()
+    return df[(df["date"] >= start_ts) & (df["date"] <= end_ts)].reset_index(drop=True)
+
+
+def _format_trend_block(df_window: pd.DataFrame, label: str) -> str:
+    """Trả về chuỗi mô tả xu hướng cho một cửa sổ thời gian."""
+    if df_window.empty:
+        return f"  {label}: không đủ dữ liệu"
+    trend = _classify_trend(df_window)
+    return (
+        f"  {label}: **{trend}** "
+        f"(đóng cửa đầu kỳ: {df_window.iloc[0]['close']:,.2f} | "
+        f"cuối kỳ: {df_window.iloc[-1]['close']:,.2f})"
+    )
+
+
 def get_market_context(
     ticker: Annotated[str, "ticker symbol đang phân tích"],
     curr_date: Annotated[str, "ngày tham chiếu YYYY-mm-dd"],
-    look_back_days: Annotated[int, "số phiên lùi để đánh giá xu hướng trung hạn"] = 7,
 ) -> str:
     """
     Trả về bối cảnh thị trường tại ngày tham chiếu gồm:
-      1. Ticker đang phân tích: biến động ngày + xu hướng look_back_days phiên
-      2. Breadth VN30: bao nhiêu mã tăng / giảm / đi ngang trong look_back_days phiên
- 
+      1. Ticker đang phân tích: biến động ngày + xu hướng 7N và 30N
+      2. Breadth VN30: bao nhiêu mã tăng / giảm / đi ngang trong 7N và 30N
+
     Lưu ý: yfinance không cung cấp VN30 Index, nên phần này được bỏ qua.
- 
-    Ví dụ: curr_date='2026-04-13', look_back_days=7
-        → lấy dữ liệu từ 2026-04-06 đến 2026-04-13
     """
+    SHORT_WINDOW = 7
+    LONG_WINDOW  = 30
+
     ticker = ticker.upper().strip()
     ref_dt = datetime.strptime(curr_date, "%Y-%m-%d")
-    start_dt = ref_dt - timedelta(days=look_back_days)
- 
+    # Lấy đủ 30 ngày lịch (≈ ~22 phiên giao dịch) cho cả 2 cửa sổ
+    start_dt = ref_dt - timedelta(days=LONG_WINDOW)
+
     start_str = start_dt.strftime("%Y-%m-%d")
-    end_str = curr_date
-    ref_ts = pd.Timestamp(ref_dt).normalize()
- 
+    end_str   = curr_date
+    ref_ts    = pd.Timestamp(ref_dt).normalize()
+
     lines: list[str] = []
     lines.append(f"# Bối cảnh thị trường – ngày tham chiếu {curr_date}")
-    lines.append(f"# Khoảng nhìn lại: {start_str} → {end_str} ({look_back_days} ngày)\n")
- 
-    # ------------------------------------------------------------------
-    # 1. Ticker đang phân tích
-    # ------------------------------------------------------------------
+    lines.append(
+        f"# Dữ liệu crawl: {start_str} → {end_str} | "
+        f"Phân tích: 7 ngày và 30 ngày\n"
+    )
     lines.append(f"## 1. Ticker {ticker}")
     ticker_df = _fetch_ohlcv_single(ticker, start=start_str, end=end_str)
- 
+
     if ticker_df.empty:
         lines.append(f"  Không lấy được dữ liệu {ticker} từ yfinance.")
     else:
@@ -364,65 +382,73 @@ def get_market_context(
             )
         else:
             lines.append(f"  Ngày {day_info['date']}: {day_info['status']}")
- 
-        trend = _classify_trend(ticker_df)
-        lines.append(f"  Xu hướng {look_back_days} ngày qua: **{trend}**")
-        lines.append(
-            f"  (Giá đóng cửa đầu kỳ: {ticker_df.iloc[0]['close']:,.2f} | "
-            f"cuối kỳ: {ticker_df.iloc[-1]['close']:,.2f})"
-        )
- 
+
+        ticker_7d  = _filter_window(ticker_df, ref_dt, SHORT_WINDOW)
+        lines.append(_format_trend_block(ticker_7d,  "Xu hướng  7 ngày"))
+        ticker_30d = _filter_window(ticker_df, ref_dt, LONG_WINDOW)
+        lines.append(_format_trend_block(ticker_30d, "Xu hướng 30 ngày"))
+
     lines.append("")
- 
-    # ------------------------------------------------------------------
-    # 2. Breadth VN30 – bulk download 1 request cho cả 30 mã
-    # ------------------------------------------------------------------
-    lines.append("## 2. Breadth VN30 (xu hướng từng mã trong kỳ)")
- 
+
+    lines.append("## 2. Breadth VN30")
+
     vn30_data = _fetch_ohlcv_bulk(VN30_SYMBOLS, start=start_str, end=end_str)
- 
-    breadth: dict[str, list[str]] = {"tăng": [], "giảm": [], "đi ngang": [], "lỗi": []}
- 
+
+    def _empty_breadth() -> dict:
+        return {"tăng": [], "giảm": [], "đi ngang": [], "lỗi": []}
+
+    breadth_7d  = _empty_breadth()
+    breadth_30d = _empty_breadth()
+
     for sym in VN30_SYMBOLS:
         if sym not in vn30_data:
-            breadth["lỗi"].append(sym)
+            breadth_7d["lỗi"].append(sym)
+            breadth_30d["lỗi"].append(sym)
             continue
-        t = _classify_trend(vn30_data[sym])
-        if t in breadth:
-            breadth[t].append(sym)
-        else:
-            breadth["lỗi"].append(sym)
- 
+
+        df_sym = vn30_data[sym]
+        for window, breadth in ((SHORT_WINDOW, breadth_7d), (LONG_WINDOW, breadth_30d)):
+            df_w = _filter_window(df_sym, ref_dt, window)
+            t = _classify_trend(df_w)
+            if t in breadth:
+                breadth[t].append(sym)
+            else:
+                breadth["lỗi"].append(sym)
+
     total = len(VN30_SYMBOLS)
-    lines.append(f"  Tổng số mã VN30 phân tích: {total}")
-    lines.append(
-        f"  📈 Tăng   : {len(breadth['tăng']):>3} mã  – {', '.join(breadth['tăng']) or '–'}"
-    )
-    lines.append(
-        f"  📉 Giảm   : {len(breadth['giảm']):>3} mã  – {', '.join(breadth['giảm']) or '–'}"
-    )
-    lines.append(
-        f"  ➡️  Đi ngang: {len(breadth['đi ngang']):>3} mã  – {', '.join(breadth['đi ngang']) or '–'}"
-    )
-    if breadth["lỗi"]:
+
+    for window_label, breadth in (("7 ngày", breadth_7d), ("30 ngày", breadth_30d)):
+        lines.append(f"\n  ### {window_label} (tổng {total} mã)")
         lines.append(
-            f"  ⚠️  Không lấy được dữ liệu: {', '.join(breadth['lỗi'])}"
+            f" Tăng   : {len(breadth['tăng']):>3} mã  – {', '.join(breadth['tăng']) or '–'}"
         )
- 
+        lines.append(
+            f" Giảm   : {len(breadth['giảm']):>3} mã  – {', '.join(breadth['giảm']) or '–'}"
+        )
+        lines.append(
+            f" Đi ngang: {len(breadth['đi ngang']):>3} mã  – {', '.join(breadth['đi ngang']) or '–'}"
+        )
+        if breadth["lỗi"]:
+            lines.append(f" Không lấy được dữ liệu: {', '.join(breadth['lỗi'])}")
+
     lines.append("")
- 
+
     # ------------------------------------------------------------------
     # Tóm tắt
     # ------------------------------------------------------------------
     lines.append("## Tóm tắt")
-    ticker_trend = _classify_trend(ticker_df) if not ticker_df.empty else "N/A"
+    tick_trend_7d  = _classify_trend(_filter_window(ticker_df, ref_dt, SHORT_WINDOW)) if not ticker_df.empty else "N/A"
+    tick_trend_30d = _classify_trend(_filter_window(ticker_df, ref_dt, LONG_WINDOW))  if not ticker_df.empty else "N/A"
     lines.append(
-        f"  {ticker} {look_back_days}N: {ticker_trend} | "
-        f"Breadth VN30: {len(breadth['tăng'])} tăng / "
-        f"{len(breadth['giảm'])} giảm / "
-        f"{len(breadth['đi ngang'])} đi ngang"
+        f"  {ticker} – 7N: {tick_trend_7d} | 30N: {tick_trend_30d}"
     )
- 
+    lines.append(
+        f"  Breadth VN30  7N: {len(breadth_7d['tăng'])} tăng / {len(breadth_7d['giảm'])} giảm / {len(breadth_7d['đi ngang'])} đi ngang"
+    )
+    lines.append(
+        f"  Breadth VN30 30N: {len(breadth_30d['tăng'])} tăng / {len(breadth_30d['giảm'])} giảm / {len(breadth_30d['đi ngang'])} đi ngang"
+    )
+
     return "\n".join(lines)
 
 def _get_stock_stats_bulk(
