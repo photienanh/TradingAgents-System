@@ -24,6 +24,7 @@ from app.services.session_serialization import (
     build_persistable_session,
     rebuild_reports_from_final_state,
     rebuild_agent_status_from_final_state,
+    _normalize_section,
     SECTION_TITLES,
     DEFAULT_AGENT_NAMES,
 )
@@ -389,7 +390,7 @@ class MessageBuffer:
             for sec in analyst_secs:
                 val = self.report_sections.get(sec)
                 if val:
-                    parts.append(f"### {SECTION_TITLES[sec]}\n{val}")
+                    parts.append(_normalize_section(SECTION_TITLES[sec], str(val)))
         for key, label in [
             ("investment_plan",       "## ===== QUYẾT ĐỊNH NHÓM NGHIÊN CỨU ====="),
             ("trader_investment_plan","## ===== KẾ HOẠCH NHÓM GIAO DỊCH ====="),
@@ -801,7 +802,10 @@ async def health_check():
 async def alpha_status():
     return get_status()
 
-
+@app.get("/api/config/section-titles")
+async def get_section_titles():
+    return {"section_titles": SECTION_TITLES}
+    
 # ---------------------------------------------------------------------------
 # Startup
 # ---------------------------------------------------------------------------

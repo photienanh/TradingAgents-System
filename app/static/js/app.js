@@ -32,6 +32,248 @@ function safeStringify(value) {
     catch { return String(value); }
 }
 
+let _sectionConfig = null;
+ 
+async function loadSectionConfig() {
+    if (_sectionConfig) return _sectionConfig;
+    try {
+        const r = await fetch('/api/config/section-titles');
+        const d = await r.json();
+        _sectionConfig = buildSectionConfig(d.section_titles);
+    } catch {
+        _sectionConfig = buildSectionConfig({
+            market_report:          'Phân tích thị trường',
+            sentiment_report:       'Phân tích tâm lý xã hội',
+            news_report:            'Phân tích tin tức',
+            fundamentals_report:    'Phân tích cơ bản',
+            quant_report:           'Phân tích định lượng (AlphaGPT)',
+            investment_plan:        'Quyết định nhóm nghiên cứu',
+            trader_investment_plan: 'Kế hoạch nhóm giao dịch',
+            final_trade_decision:   'Quyết định cuối cùng',
+        });
+    }
+    return _sectionConfig;
+}
+ 
+function buildSectionConfig(titles) {
+    const KEY_COLORS = {
+        market_report:          '#6366f1',
+        sentiment_report:       '#f59e0b',
+        news_report:            '#0ea5e9',
+        fundamentals_report:    '#10b981',
+        quant_report:           '#8b5cf6',
+        investment_plan:        '#ef4444',
+        trader_investment_plan: '#f97316',
+        final_trade_decision:   '#dc2626',
+    };
+    const DECISION_KEYS = ['investment_plan', 'trader_investment_plan', 'final_trade_decision'];
+ 
+    const labelMap   = {};
+    const labelOrder = [];
+    for (const [key, label] of Object.entries(titles)) {
+        labelMap[label] = {
+            key,
+            color:      KEY_COLORS[key] || '#6366f1',
+            isDecision: DECISION_KEYS.includes(key),
+        };
+        labelOrder.push(label);
+    }
+    labelOrder.sort((a, b) => b.length - a.length);
+    return { labelMap, labelOrder, titles, KEY_COLORS };
+}
+ 
+async function renderReport(md) {
+    if (!md) return '';
+    const cfg = await loadSectionConfig();
+    return _renderReport(md, cfg);
+}
+ 
+function _renderReport(md, cfg) {
+    const text = sanitizeReportText(md);
+ 
+    // ── Step 1: Tách ## ===== DECISION ===== ra TRƯỚC mọi thứ khác
+    // Làm trước normalize để tránh ## bị thay đổi
+    const decisionBlocks = [];
+    let cleaned = text;
+    const decisionHit = /^##\s+=====\s*/im.exec(cleaned);
+    if (decisionHit) {
+        const decisionPart = cleaned.slice(decisionHit.index).trim();
+        cleaned            = cleaned.slice(0, decisionHit.index).trim();
+        decisionPart.split(/(?=^##\s+=====)/im).forEach(blk => {
+            if (blk.trim()) decisionBlocks.push(blk.trim());
+        });
+    }
+ 
+    // ── Step 2: Xoá wrapper "## Báo cáo nhóm phân tích"
+    cleaned = cleaned.replace(/^##\s+Báo cáo nhóm phân tích\s*\n?/im, '');
+ 
+    // ── Step 3: Normalize "## Tên section" → "### Tên section"
+    // Chỉ áp dụng cho analyst section labels, không phải ## ===== (đã tách rồi)
+    cfg.labelOrder.forEach(label => {
+        const esc = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        cleaned = cleaned.replace(
+            new RegExp('^##\\s+(' + esc + ')\\s*$', 'gim'),
+            '### $1'
+        );
+    });
+ 
+    // ── Step 4: Split theo ### Section Label
+    const escapedLabels = cfg.labelOrder.map(l => l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const SPLIT_RE = new RegExp(
+        '(?=^###\\s+(?:' + escapedLabels.join('|') + ')\\s*$)',
+        'im'
+    );
+    const chunks = cleaned.split(SPLIT_RE);
+ 
+    let html = '';
+ 
+    for (const chunk of chunks) {
+        if (!chunk.trim()) continue;
+ 
+        let matchedLabel = null;
+        for (const label of cfg.labelOrder) {
+            const re = new RegExp('^###\\s+' + label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*$', 'im');
+            if (re.test(chunk)) { matchedLabel = label; break; }
+        }
+ 
+        if (!matchedLabel) {
+            // Phần header/metadata — chỉ hiện nếu có nội dung thực
+            const stripped = chunk.replace(/^#+\s*.+$/gm, '').replace(/[-\s|:]/g, '');
+            if (stripped.length > 30) {
+                html += `<div class="report-body" style="margin-bottom:1.5rem;">${marked.parse(chunk)}</div>`;
+            }
+            continue;
+        }
+ 
+        const meta    = cfg.labelMap[matchedLabel];
+        const labelEsc = matchedLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const body    = chunk.replace(new RegExp('^###\\s+' + labelEsc + '\\s*\\n', 'im'), '').trim();
+ 
+        html += renderSectionBlock(matchedLabel, body, meta.color, meta.isDecision, cfg);
+    }
+ 
+    // ── Step 5: Render decision blocks
+    for (const blk of decisionBlocks) {
+        const titleMatch = blk.match(/^##\s+=====\s*(.+?)\s*=====\s*$/im);
+        if (!titleMatch) continue;
+        const title = titleMatch[1].trim();
+        const body  = blk.replace(/^##\s+=====.+=====\s*\n/im, '').trim();
+ 
+        // Tìm màu: thử match label map trước, rồi fallback theo keyword
+        let color = '#ef4444';
+        for (const [label, meta] of Object.entries(cfg.labelMap)) {
+            if (title.toLowerCase().includes(label.toLowerCase().slice(0, 8))) {
+                color = meta.color; break;
+            }
+        }
+        if (/cuối cùng/i.test(title)) color = '#dc2626';
+        else if (/giao dịch/i.test(title)) color = '#f97316';
+ 
+        html += renderSectionBlock(title, body, color, true, cfg);
+    }
+ 
+    return html || '<p style="color:var(--text-muted);padding:2rem;text-align:center;">Không có nội dung.</p>';
+}
+ 
+function renderSectionBlock(label, body, color, isDecision, cfg) {
+    // Tìm recommendation/decision trong nhiều định dạng và loại khỏi body.
+    // Dùng quyết định cuối cùng để render badge.
+    let cleanBody = body;
+    let badge = '';
+
+    const actionRe = /\b(BUY|SELL|HOLD)\b/i;
+    const explicitDecisionPatterns = [
+        /^\s{0,3}>?\s*\*{0,2}\s*FINAL\s+TRANSACTION\s+PROPOSAL\s*:\s*\*{0,2}\s*(BUY|SELL|HOLD)\b.*$/gim,
+        /^\s{0,3}>?\s*\*{0,2}\s*RECOMMENDATION\s*:\s*\*{0,2}\s*(BUY|SELL|HOLD)\b.*$/gim,
+        /^\s{0,3}>?\s*\*{0,2}\s*Khuyến\s*nghị(?:\s+cuối\s+cùng)?\s*:\s*\*{0,2}\s*(BUY|SELL|HOLD)\b.*$/gim,
+        /^\s{0,3}>?\s*\*{0,2}\s*Khuyen\s*nghi(?:\s+cuoi\s+cung)?\s*:\s*\*{0,2}\s*(BUY|SELL|HOLD)\b.*$/gim,
+        /^\s{0,3}>?\s*\*{0,2}\s*Quyết\s*định(?:\s+cuối\s+cùng)?\s*:\s*\*{0,2}\s*(BUY|SELL|HOLD)\b.*$/gim,
+        /^\s{0,3}>?\s*\*{0,2}\s*Quyet\s*dinh(?:\s+cuoi\s+cung)?\s*:\s*\*{0,2}\s*(BUY|SELL|HOLD)\b.*$/gim,
+    ];
+
+    let latestDecision = '';
+    const linesToRemove = new Set();
+    const lines = String(body || '').split('\n');
+
+    explicitDecisionPatterns.forEach((re) => {
+        let m;
+        while ((m = re.exec(String(body || ''))) !== null) {
+            if (m[1]) latestDecision = m[1].toUpperCase();
+            const matchedLine = m[0].trim();
+            for (const line of lines) {
+                if (line.trim() === matchedLine) linesToRemove.add(line);
+            }
+        }
+    });
+
+    // Fallback: chỉ nhận dòng có nhãn quyết định + dấu ':' + đúng 1 action.
+    if (!latestDecision) {
+        for (const line of lines) {
+            const normalized = line.replace(/[>*_`#-]/g, ' ').replace(/\s+/g, ' ').trim();
+            const hasLabel = /(final\s+transaction\s+proposal|recommendation|khuyến\s*nghị|khuyen\s*nghi|quyết\s*định|quyet\s*dinh)/i.test(normalized);
+            const hasColon = normalized.includes(':');
+            const actions = [...normalized.matchAll(/\b(BUY|SELL|HOLD)\b/gi)].map(v => v[1].toUpperCase());
+            const uniqueActions = [...new Set(actions)];
+            if (hasLabel && hasColon && uniqueActions.length === 1) {
+                latestDecision = uniqueActions[0];
+                linesToRemove.add(line);
+            }
+        }
+    }
+
+    const keptLines = lines.filter(line => !linesToRemove.has(line));
+    cleanBody = keptLines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+
+    // Dọn thêm heading marker quyết định độc lập (không chứa action value)
+    cleanBody = cleanBody
+        .split('\n')
+        .filter((line) => {
+            const normalized = line.replace(/[>*_`#-]/g, ' ').replace(/\s+/g, ' ').trim();
+            const isMarkerOnly = /(khuyến\s*nghị|khuyen\s*nghi|quyết\s*định|quyet\s*dinh|recommendation)/i.test(normalized)
+                && !actionRe.test(normalized)
+                && normalized.length <= 64;
+            return !isMarkerOnly;
+        })
+        .join('\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+
+    if (latestDecision) badge = makeDecisionBadge(latestDecision);
+ 
+ 
+    const bodyHtml = marked.parse(normalizeBodyHeadings(cleanBody));
+    const pad = isDecision
+        ? `background:${color}07;border-radius:0 12px 12px 0;padding:1.125rem 1.25rem;`
+        : 'padding:0 0 0 1.125rem;';
+ 
+    return `
+<div class="report-section" style="margin-bottom:1.75rem;border-left:3px solid ${color};${pad}">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid ${color}22;">
+        <span style="font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:${color};">${label}</span>
+        ${badge}
+        <span style="flex:1;height:1px;background:${color}20;"></span>
+    </div>
+    <div class="report-body">${bodyHtml}</div>
+</div>`;
+}
+ 
+function makeDecisionBadge(v) {
+    const c = { BUY: '#10b981', SELL: '#ef4444', HOLD: '#f59e0b' }[v] || '#6b7280';
+    return `<span style="display:inline-flex;align-items:center;background:${c}18;border:1.5px solid ${c}55;color:${c};border-radius:8px;padding:3px 14px;font-size:0.78rem;font-weight:800;letter-spacing:0.06em;">${v}</span>`;
+}
+ 
+function normalizeBodyHeadings(md) {
+    if (!md) return md;
+    const matches = [...md.matchAll(/^(#{1,6})\s/gm)];
+    if (!matches.length) return md;
+    const minLevel = Math.min(...matches.map(m => m[1].length));
+    const shift    = 3 - minLevel;
+    if (shift === 0) return md;
+    return md.replace(/^(#{1,6})(\s)/gm, (_, h, s) =>
+        '#'.repeat(Math.min(6, Math.max(1, h.length + shift))) + s
+    );
+}
+
 // ── Sidebar ────────────────────────────────────────────────────────────────
 
 function setupSidebarToggle() {
@@ -230,7 +472,7 @@ async function checkAnalysisStatus() {
 
 // ── Progress UI update ─────────────────────────────────────────────────────
 
-function updateProgressUI(data) {
+async function updateProgressUI(data) {
     const statusBadge = document.getElementById('current-status');
     statusBadge.textContent = data.status;
     statusBadge.className   = `status-badge ${data.status}`;
@@ -274,14 +516,14 @@ function updateProgressUI(data) {
 
     const reportDiv = document.getElementById('current-report');
     if (data.current_report) {
-        reportDiv.innerHTML = marked.parse(sanitizeReportText(data.current_report));
+        reportDiv.innerHTML = await renderReport(data.current_report);
     } else if (data.status === 'completed' && data.final_report) {
-        reportDiv.innerHTML = marked.parse(sanitizeReportText(data.final_report));
+        reportDiv.innerHTML = await renderReport(data.final_report);
     }
 
     const finalDiv = document.getElementById('final-report');
     if (finalDiv && data.final_report) {
-        finalDiv.innerHTML = marked.parse(sanitizeReportText(data.final_report));
+        finalDiv.innerHTML = await renderReport(data.final_report);
     }
 
     if (data.decision) updateDecision(data.decision);
@@ -463,7 +705,7 @@ function formatDateTime(dateString) {
 
 // ── View / Delete session ──────────────────────────────────────────────────
 
-function renderSessionReview(sessionId, data) {
+async function renderSessionReview(sessionId, data) {
     openSessionReviewModal();
 
     document.getElementById('review-session-id').textContent = sessionId;
@@ -476,14 +718,14 @@ function renderSessionReview(sessionId, data) {
     const currentEl = document.getElementById('review-current-report');
     if (currentEl) {
         currentEl.innerHTML = data.current_report
-            ? marked.parse(sanitizeReportText(data.current_report))
+            ? await renderReport(data.current_report)
             : 'Không có báo cáo tạm thời.';
     }
 
     const finalEl = document.getElementById('review-final-report');
     if (finalEl) {
         finalEl.innerHTML = data.final_report
-            ? marked.parse(sanitizeReportText(data.final_report))
+            ? await renderReport(data.final_report)
             : 'Chưa có báo cáo tổng hợp.';
     }
 

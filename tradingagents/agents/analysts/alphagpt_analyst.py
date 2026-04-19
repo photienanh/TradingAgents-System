@@ -304,7 +304,13 @@ Cấu trúc báo cáo BẮT BUỘC (giữ đúng headers):
 ### 2. Chất lượng mô hình
 ### 3. Phân tích từng alpha
 ### 4. Rủi ro và cảnh báo
-### 5. Kết luận định lượng"""
+### 5. Kết luận định lượng
+
+Quy tắc BẮT BUỘC cho mục 3:
+- Mỗi alpha dùng header: #### Alpha N — <tên ý tưởng> [tags] (trọng số X%)
+- Dòng đầu tiên PHẢI là: **Formula:** `<expression đầy đủ>`
+- Dòng thứ hai: **Loại tín hiệu:** <family> — <mô tả ngắn> (nếu family là UNKNOWN thì không cần trường này)
+- Sau đó mới phân tích IC, Sharpe, ý nghĩa kinh tế"""
 
 
 def _build_llm_prompt(raw: dict) -> str:
@@ -312,12 +318,11 @@ def _build_llm_prompt(raw: dict) -> str:
     alpha_blocks = []
     for a in raw["alpha_details"]:
         tags = []
-        if a["gp_enhanced"]: tags.append("GP-enhanced")
         if a["flipped"]:      tags.append("FLIPPED")
         tag_str = f" [{', '.join(tags)}]" if tags else ""
-
+        family_display = a['family'] if a['family'].upper() != 'UNKNOWN' else a.get('idea', 'unknown')[:30]
         block = f"""
-  Alpha {a['id']} — {a['family'].upper()}{tag_str} (trọng số {a['weight_pct']}%)
+  Alpha {a['id']} — {family_display}{tag_str} (trọng số {a['weight_pct']}%)
   Ý tưởng: {a['idea']}
   Cơ sở kinh tế: {a['hypothesis']}
   Loại: {a['family']} — {a['family_desc']}

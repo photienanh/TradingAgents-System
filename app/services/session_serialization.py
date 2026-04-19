@@ -10,6 +10,7 @@ Serialization helpers cho session data.
 main.py import từ đây, không define lại.
 """
 import datetime
+import re
 from collections import deque
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -74,6 +75,43 @@ SECTION_TO_AGENT: Dict[str, str] = {
 # Rebuild helpers — single source of truth
 # ---------------------------------------------------------------------------
 
+def _normalize_section(title: str, content: str) -> str:
+    """
+    Wrap một section analyst vào block chuẩn:
+    - Đổi tên heading bên trong thành h3/h4/h5 (shift xuống 2 bậc)
+      để không xung đột với h2 wrapper bên ngoài
+    - Tách FINAL TRANSACTION PROPOSAL ra thành dòng riêng ở cuối
+    """
+    if not content:
+        return ""
+
+    # Shift tất cả heading bên trong xuống 2 bậc (# → ###, ## → ####, v.v.)
+    def shift_heading(m):
+        hashes = m.group(1)
+        rest   = m.group(2)
+        new_level = min(6, len(hashes) + 2)
+        return '#' * new_level + rest
+
+    normalized = re.sub(r'^(#{1,6})([ \t].+)$', shift_heading, content,
+                        flags=re.MULTILINE)
+
+    # Tách proposal ra khỏi body
+    proposal_pattern = re.compile(
+        r'\n?[^\n]*FINAL TRANSACTION PROPOSAL[^\n]*\n?',
+        re.IGNORECASE
+    )
+    proposals = proposal_pattern.findall(normalized)
+    body      = proposal_pattern.sub('', normalized).strip()
+
+    result = f"## {title}\n\n{body}"
+    if proposals:
+        # Lấy decision value từ proposal
+        m = re.search(r'(BUY|SELL|HOLD)', proposals[-1], re.IGNORECASE)
+        decision_val = m.group(1).upper() if m else proposals[-1].strip()
+        result += f"\n\n> **Khuyến nghị:** {decision_val}"
+
+    return result
+
 def rebuild_reports_from_final_state(
     final_state: Any,
 ) -> Tuple[Optional[str], Optional[str]]:
@@ -112,7 +150,7 @@ def rebuild_reports_from_final_state(
         for sec in analyst_sections:
             val = final_state.get(sec)
             if val:
-                report_parts.append(f"### {SECTION_TITLES[sec]}\n{val}")
+                report_parts.append(_normalize_section(SECTION_TITLES[sec], str(val)))
 
     if final_state.get("investment_plan"):
         report_parts += [
