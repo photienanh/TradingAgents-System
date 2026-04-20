@@ -7,6 +7,8 @@ let statusCheckInterval    = null;
 let isReviewingHistoricalSession = false;
 let activePollingSessionId = null;
 
+const START_ANALYSIS_HTML = '<i class="fa-solid fa-play" aria-hidden="true"></i> Start Analysis';
+
 // Keys cho các decision sections (hiển thị badge BUY/SELL/HOLD)
 const DECISION_SECTION_KEYS = new Set([
     'investment_plan',
@@ -41,6 +43,24 @@ function sanitizeReportText(text) {
 function safeStringify(value) {
     try   { return JSON.stringify(value, null, 2); }
     catch { return String(value); }
+}
+
+function stripStatusEmoji(text) {
+    const raw = String(text || '');
+    // Remove leading emoji/symbol cluster so status reads clean text.
+    return raw.replace(/^[\p{Extended_Pictographic}\p{Emoji_Presentation}\u2600-\u27BF\uFE0F\u200D\s]+/u, '').trim();
+}
+
+function getStatusBadgeMeta(status) {
+    const s = String(status || '').toLowerCase();
+    const map = {
+        initializing: { icon: 'fa-solid fa-hourglass-start', label: 'initializing' },
+        running:      { icon: 'fa-solid fa-spinner fa-spin',   label: 'running' },
+        completed:    { icon: 'fa-solid fa-circle-check',      label: 'completed' },
+        cancelled:    { icon: 'fa-solid fa-ban',               label: 'cancelled' },
+        error:        { icon: 'fa-solid fa-triangle-exclamation', label: 'error' },
+    };
+    return map[s] || { icon: 'fa-solid fa-circle-info', label: status || '-' };
 }
 
 let _sectionConfig = null;
@@ -386,7 +406,7 @@ async function startAnalysis() {
     if (!selectedAnalysts.length) {
         alert('Please select at least one analyst');
         submitBtn.disabled = false;
-        btnText.textContent = '🚀 Start Analysis';
+        btnText.innerHTML = START_ANALYSIS_HTML;
         spinner.classList.add('hidden');
         return;
     }
@@ -420,7 +440,7 @@ async function startAnalysis() {
             const err = await resp.json().catch(() => ({}));
             alert(`Failed to start analysis: ${err.error || 'Unknown error'}`);
             submitBtn.disabled = false;
-            btnText.textContent = '🚀 Start Analysis';
+            btnText.innerHTML = START_ANALYSIS_HTML;
             spinner.classList.add('hidden');
             return;
         }
@@ -446,7 +466,7 @@ async function startAnalysis() {
         console.error('Error starting analysis:', error);
         alert(`Failed to start analysis: ${error.message}`);
         submitBtn.disabled = false;
-        btnText.textContent = '🚀 Start Analysis';
+        btnText.innerHTML = START_ANALYSIS_HTML;
         spinner.classList.add('hidden');
     }
 }
@@ -480,16 +500,17 @@ async function checkAnalysisStatus() {
 
 async function updateProgressUI(data) {
     const statusBadge = document.getElementById('current-status');
-    statusBadge.textContent = data.status;
+    const currentStatusMeta = getStatusBadgeMeta(data.status);
+    statusBadge.innerHTML = `<i class="${currentStatusMeta.icon}" aria-hidden="true"></i> ${currentStatusMeta.label}`;
     statusBadge.className   = `status-badge ${data.status}`;
 
     const fallback = {
-        completed: '✅ Hoàn thành phân tích',
-        cancelled: '🛑 Đã hủy phân tích theo yêu cầu',
-        error:     '❌ Phân tích thất bại',
+        completed: 'Hoàn thành phân tích',
+        cancelled: 'Đã hủy phân tích theo yêu cầu',
+        error:     'Phân tích thất bại',
     }[data.status] || 'Đang xử lý...';
 
-    const step    = data.current_step || fallback;
+    const step    = stripStatusEmoji(data.current_step || fallback);
     const percent = Number.isFinite(data.progress_percent)
         ? Math.max(0, Math.min(100, data.progress_percent))
         : (data.status === 'completed' ? 100 : 0);
@@ -510,7 +531,7 @@ async function updateProgressUI(data) {
     if (data.status === 'error' && data.error) {
         document.getElementById('current-report').innerHTML = `
             <div class="error-message">
-                <h3>❌ Error</h3>
+                <h3><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Error</h3>
                 <p><strong>Error:</strong> ${data.error}</p>
                 ${data.error_details
                     ? `<details><summary>View Details</summary><pre>${data.error_details}</pre></details>`
@@ -567,14 +588,79 @@ function formatStatusLabel(status) {
     }[status] || status;
 }
 
+const ANALYST_TOOLS = {
+    'Market Analyst': {
+        desc: 'Phân tích kỹ thuật & giá cổ phiếu',
+        tools: [
+            { name: 'get_stock_data(symbol, start_date, end_date)', desc: 'Lấy dữ liệu OHLCV lịch sử cho mã đang phân tích.' },
+            { name: 'get_indicators(ticker, indicators, start_date, end_date)', desc: 'Tính các chỉ báo kỹ thuật: MA/EMA, RSI, MACD, Bollinger, ATR, VWMA...' },
+            { name: 'get_market_context(ticker, curr_date)', desc: 'Lấy bối cảnh thị trường VN30 và market breadth gần ngày phân tích.' },
+        ],
+    },
+    'Social Analyst': {
+        desc: 'Phân tích tâm lý & mạng xã hội',
+        tools: [
+            { name: 'get_news(query, start_date, end_date)', desc: 'Thu thập tin tức và thảo luận theo mã/chủ đề để suy luận sentiment thị trường.' },
+        ],
+    },
+    'News Analyst': {
+        desc: 'Phân tích tin tức đa nguồn',
+        tools: [
+            { name: 'get_news(query, start_date, end_date)', desc: 'Tin theo doanh nghiệp/chủ đề, bao gồm tin ngành và đối thủ.' },
+            { name: 'get_global_news(curr_date, look_back_days, limit)', desc: 'Tin vĩ mô tổng quát: lãi suất, tỷ giá, hàng hóa, địa chính trị.' },
+        ],
+    },
+    'Fundamentals Analyst': {
+        desc: 'Phân tích tài chính doanh nghiệp',
+        tools: [
+            { name: 'get_fundamentals(ticker, curr_date)', desc: 'Tổng quan định giá và chỉ số nền tảng của doanh nghiệp.' },
+            { name: 'get_balance_sheet(ticker, curr_date)', desc: 'Bảng cân đối kế toán: tài sản, nợ, vốn chủ sở hữu.' },
+            { name: 'get_cashflow(ticker, curr_date)', desc: 'Báo cáo lưu chuyển tiền tệ và chất lượng dòng tiền.' },
+            { name: 'get_income_statement(ticker, curr_date)', desc: 'Báo cáo kết quả kinh doanh: doanh thu, lợi nhuận, biên.' },
+        ],
+    },
+};
+
+function formatToolSignature(name) {
+    const match = /^([a-zA-Z_][a-zA-Z0-9_]*)(\(.*\))$/.exec(String(name || ''));
+    if (!match) {
+        return `<span class="tooltip-tool-method">${name}</span>`;
+    }
+    const method = match[1];
+    const params = match[2];
+    return `
+        <span class="tooltip-tool-method">${method}</span>
+        <span class="tooltip-tool-params">${params}</span>`;
+}
+
+function createAnalystTooltip(agent) {
+    const data = ANALYST_TOOLS[agent];
+    if (!data) return '';
+    const toolsHtml = data.tools.map(t => `
+        <div class="tooltip-tool">
+            <span class="tooltip-tool-name">${formatToolSignature(t.name)}</span>
+            <span class="tooltip-tool-desc">${t.desc}</span>
+        </div>`).join('');
+    return `
+        <div class="analyst-tooltip">
+            <div class="tooltip-header">${agent}</div>
+            <div class="tooltip-subdesc">${data.desc}</div>
+            <div class="tooltip-divider"></div>
+            <div class="tooltip-tools-label">Tools</div>
+            ${toolsHtml}
+        </div>`;
+}
+
 function createAgentStatusItem(agent, status) {
     const div = document.createElement('div');
-    div.className = `agent-node ${status}`;
+    const hasTooltip = agent in ANALYST_TOOLS;
+    div.className = `agent-node ${status}${hasTooltip ? ' has-tooltip' : ''}`;
     div.dataset.agent = agent;
     div.dataset.status = status;
     div.innerHTML = `
         <div class="agent-node-name">${agent}</div>
-        <div class="agent-node-status">${getStatusIcon(status)} ${formatStatusLabel(status)}</div>`;
+        <div class="agent-node-status">${getStatusIcon(status)} ${formatStatusLabel(status)}</div>
+        ${hasTooltip ? createAnalystTooltip(agent) : ''}`;
     return div;
 }
 
@@ -639,20 +725,32 @@ function updateAgentStatus(agentStatus) {
 }
 
 function getStatusIcon(status) {
-    return { pending: '⏳', in_progress: '⚙️', completed: '✅', not_selected: '⏭️' }[status] || '⏳';
+    const icons = {
+        pending:      `<i class="fa-solid fa-clock status-fa-icon pending" aria-hidden="true"></i>`,
+        in_progress:  `<i class="fa-solid fa-gear status-fa-icon in-progress" aria-hidden="true"></i>`,
+        completed:    `<i class="fa-solid fa-circle-check status-fa-icon completed" aria-hidden="true"></i>`,
+        not_selected: `<i class="fa-solid fa-forward status-fa-icon not-selected" aria-hidden="true"></i>`,
+    };
+    return icons[status] || icons.pending;
 }
 
 // ── Decision ───────────────────────────────────────────────────────────────
 
 function buildDecisionHtml(decision) {
+    const decisionIconClass = {
+        buy: 'fa-solid fa-arrow-trend-up',
+        sell: 'fa-solid fa-arrow-trend-down',
+        hold: 'fa-solid fa-pause',
+    };
+
     if (typeof decision === 'string') {
         const upper = decision.toUpperCase();
         const type  = upper.includes('BUY') ? 'BUY' : upper.includes('SELL') ? 'SELL' : 'HOLD';
         const cls   = type.toLowerCase();
         return `
             <div class="decision-highlight decision-${cls}">
-                <div class="decision-icon">${cls==='buy'?'📈':cls==='sell'?'📉':'⏸️'}</div>
-                <div class="decision-text"><h2>${type}</h2><p>${decision}</p></div>
+                <div class="decision-icon"><i class="${decisionIconClass[cls]} decision-icon-${cls}" aria-hidden="true"></i></div>
+                <div class="decision-text"><h2><i class="${decisionIconClass[cls]} decision-label-icon" aria-hidden="true"></i> ${type}</h2></div>
             </div>`;
     }
     if (typeof decision === 'object' && decision !== null) {
@@ -661,8 +759,8 @@ function buildDecisionHtml(decision) {
         const cls  = type.toLowerCase();
         let html = `
             <div class="decision-highlight decision-${cls}">
-                <div class="decision-icon">${cls==='buy'?'📈':cls==='sell'?'📉':'⏸️'}</div>
-                <div class="decision-text"><h2>${type}</h2></div>
+                <div class="decision-icon"><i class="${decisionIconClass[cls]} decision-icon-${cls}" aria-hidden="true"></i></div>
+                <div class="decision-text"><h2><i class="${decisionIconClass[cls]} decision-label-icon" aria-hidden="true"></i> ${type}</h2></div>
             </div>
             <div class="decision-details">`;
         for (const [k, v] of Object.entries(decision)) {
@@ -705,7 +803,7 @@ function startNewAnalysis() {
     document.getElementById('analysis-form-card').classList.remove('hidden');
 
     const submitBtn = document.querySelector('#analysis-form button[type="submit"]');
-    submitBtn.querySelector('.btn-text').textContent = '🚀 Start Analysis';
+    submitBtn.querySelector('.btn-text').innerHTML = START_ANALYSIS_HTML;
     submitBtn.querySelector('.spinner').classList.add('hidden');
     submitBtn.disabled = false;
 
@@ -758,7 +856,7 @@ function displaySessions(sessions) {
         div.className = 'session-item';
         div.innerHTML = `
             <div class="session-item-info">
-                <div class="session-item-ticker">📊 ${session.ticker}</div>
+                <div class="session-item-ticker"><i class="fa-solid fa-chart-column" aria-hidden="true"></i> ${session.ticker}</div>
                 <div class="session-item-meta">
                     ${session.analysis_date} | ${session.status} | ${formatDateTime(session.created_at)}
                 </div>
@@ -789,7 +887,8 @@ async function renderSessionReview(sessionId, data) {
     document.getElementById('review-ticker').textContent     = sessionId.split('_')[0] || '-';
 
     const statusEl = document.getElementById('review-status');
-    statusEl.textContent = data.status || '-';
+    const reviewStatusMeta = getStatusBadgeMeta(data.status);
+    statusEl.innerHTML = `<i class="${reviewStatusMeta.icon}" aria-hidden="true"></i> ${reviewStatusMeta.label}`;
     statusEl.className   = `status-badge ${data.status || ''}`;
 
     const currentEl = document.getElementById('review-current-report');
