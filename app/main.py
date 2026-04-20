@@ -223,9 +223,36 @@ def _to_positive_int(value: Any, default: int) -> int:
         return default
 
 
-def _derive_realtime_step(chunk, max_debate_rounds=1, max_risk_rounds=1):
+def _derive_realtime_step(chunk, max_debate_rounds=1, max_risk_rounds=1, selected_analysts=None):
     max_debate_rounds = _to_positive_int(max_debate_rounds, 1)
     max_risk_rounds   = _to_positive_int(max_risk_rounds, 1)
+
+    _selected = selected_analysts or ["market", "social", "news", "fundamentals"]
+    _analyst_report_keys = ["market", "social", "news", "fundamentals"]
+    _report_key_map = {
+        "market":       "market_report",
+        "social":       "sentiment_report",
+        "news":         "news_report",
+        "fundamentals": "fundamentals_report",
+    }
+    _analyst_labels = {
+        "market":       "📊 Market Analyst đã hoàn thành",
+        "social":       "💬 Social Analyst đã hoàn thành",
+        "news":         "📰 News Analyst đã hoàn thành",
+        "fundamentals": "📈 Fundamentals Analyst đã hoàn thành",
+    }
+    active_analysts = [k for k in _analyst_report_keys if k in _selected]
+    n = max(1, len(active_analysts))
+    analyst_start_pct = 15
+    analyst_end_pct   = 72
+
+    for i, key in enumerate(active_analysts):
+        if chunk.get(_report_key_map[key]):
+            pct = analyst_start_pct + int((analyst_end_pct - analyst_start_pct) * (i + 1) / n)
+            return (_analyst_labels[key], pct)
+
+    if chunk.get("quant_report"):
+        return ("🤖 AlphaGPT Analyst đã hoàn thành", 77)
 
     if chunk.get("final_trade_decision"):
         return ("✅ Hoàn thành phán quyết cuối cùng", 100)
@@ -246,7 +273,7 @@ def _derive_realtime_step(chunk, max_debate_rounds=1, max_risk_rounds=1):
             "Neutral": "⚖️ Đang tranh luận: Neutral Analyst",
         }
         if latest_speaker in risk_text_map:
-            return (f"{risk_text_map[latest_speaker]} (lượt {clamped_turn}/{max_turns})", stage_pct)
+            return (risk_text_map[latest_speaker], stage_pct)
 
     if chunk.get("trader_investment_plan"):
         return ("🧠 Trader đang ra kế hoạch giao dịch", 90)
@@ -266,11 +293,6 @@ def _derive_realtime_step(chunk, max_debate_rounds=1, max_risk_rounds=1):
             return (f"⚔️ Đang tranh luận: Bull Analyst (lượt {clamped_turn}/{max_turns})", stage_pct)
         if current_response.startswith("Bear Analyst"):
             return (f"⚔️ Đang tranh luận: Bear Analyst (lượt {clamped_turn}/{max_turns})", stage_pct)
-
-    if chunk.get("fundamentals_report"): return ("📈 Fundamentals Analyst đã hoàn thành", 76)
-    if chunk.get("news_report"):         return ("📰 News Analyst đã hoàn thành", 70)
-    if chunk.get("sentiment_report"):    return ("💬 Social Analyst đã hoàn thành", 64)
-    if chunk.get("market_report"):       return ("📊 Market Analyst đã hoàn thành", 58)
 
     messages = chunk.get("messages")
     if isinstance(messages, list) and messages:
@@ -459,7 +481,7 @@ async def run_trading_analysis(
             if session_mgr.get_field(session_id, "cancel_requested"):
                 raise asyncio.CancelledError("Analysis cancelled by user")
 
-            progress_info = _derive_realtime_step(chunk, max_debate_rounds, max_risk_rounds)
+            progress_info = _derive_realtime_step(chunk, max_debate_rounds, max_risk_rounds, analysts)
             if progress_info is None:
                 return
 
@@ -471,10 +493,10 @@ async def run_trading_analysis(
             })
 
             # ── Analyst reports ──────────────────────────────────────────────
-            # BUG FIX: chỉ set in_progress nếu chưa completed
-            # Không reset analyst đã xong về in_progress khi chunk mới đến
+            _analyst_order = ["market", "social", "news", "fundamentals"]
+            _active_analysts = [k for k in _analyst_order if k in analysts]
             active_set = False
-            for key in analysts:
+            for key in _active_analysts:
                 name = analyst_map.get(key)
                 rkey = report_by_analyst.get(key)
                 if not name or not rkey:
@@ -482,34 +504,53 @@ async def run_trading_analysis(
                 if chunk.get(rkey):
                     message_buffer.update_agent_status(name, "completed")
                 elif message_buffer.agent_status.get(name) != "completed":
-                    # Chỉ set in_progress cho analyst đầu tiên chưa xong
                     if not active_set:
                         message_buffer.update_agent_status(name, "in_progress")
                         active_set = True
-                    # Các analyst sau để pending (không downgrade completed)
+
+            # AlphaGPT: in_progress khi tất cả qualitative analysts đã xong,
+            # completed khi có quant_report
+            if chunk.get("quant_report"):
+                message_buffer.update_agent_status("AlphaGPT Analyst", "completed")
+            elif not active_set:
+                # Không còn analyst nào pending/in_progress → AlphaGPT đang chạy
+                all_qual_done = all(
+                    message_buffer.agent_status.get(analyst_map[k]) == "completed"
+                    for k in _active_analysts if analyst_map.get(k)
+                )
+                if all_qual_done and message_buffer.agent_status.get("AlphaGPT Analyst") != "completed":
+                    message_buffer.update_agent_status("AlphaGPT Analyst", "in_progress")
 
             # ── Investment debate ────────────────────────────────────────────
             invest_state = chunk.get("investment_debate_state")
             if isinstance(invest_state, dict):
                 cr = str(invest_state.get("current_response", ""))
                 jd = str(invest_state.get("judge_decision", ""))
-                if cr.startswith("Bull Analyst"):
-                    message_buffer.update_agent_status("Bull Researcher", "in_progress")
-                elif cr.startswith("Bear Analyst"):
-                    message_buffer.update_agent_status("Bull Researcher", "completed")
-                    message_buffer.update_agent_status("Bear Researcher", "in_progress")
+                count = _to_positive_int(invest_state.get("count"), 0)
+                max_turns = max(1, 2 * max_debate_rounds)
                 if jd:
                     for a in ["Bull Researcher", "Bear Researcher"]:
                         message_buffer.update_agent_status(a, "completed")
                     message_buffer.update_agent_status("Research Manager", "in_progress")
+                elif cr.startswith("Bull Analyst"):
+                    # Đầu lượt Bull: Bear có thể đã xong lượt trước — chỉ mark
+                    # in_progress nếu chưa completed hẳn (tránh nhấp nháy multi-round)
+                    if message_buffer.agent_status.get("Bull Researcher") != "completed":
+                        message_buffer.update_agent_status("Bull Researcher", "in_progress")
+                    # Bear đã nói xong lượt trước → completed tạm thời
+                    if count > 1 and message_buffer.agent_status.get("Bear Researcher") == "in_progress":
+                        message_buffer.update_agent_status("Bear Researcher", "pending")
+                elif cr.startswith("Bear Analyst"):
+                    if message_buffer.agent_status.get("Bear Researcher") != "completed":
+                        message_buffer.update_agent_status("Bear Researcher", "in_progress")
+                    if message_buffer.agent_status.get("Bull Researcher") == "in_progress":
+                        message_buffer.update_agent_status("Bull Researcher", "pending")
 
             if chunk.get("investment_plan"):
+                for a in ["Bull Researcher", "Bear Researcher"]:
+                    message_buffer.update_agent_status(a, "completed")
                 if message_buffer.agent_status.get("Research Manager") != "completed":
                     message_buffer.update_agent_status("Research Manager", "in_progress")
-
-            if chunk.get("trader_investment_plan"):
-                message_buffer.update_agent_status("Research Manager", "completed")
-                message_buffer.update_agent_status("Trader", "completed")
             elif chunk.get("investment_plan"):
                 message_buffer.update_agent_status("Trader", "in_progress")
 

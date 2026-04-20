@@ -30,7 +30,7 @@ def create_bear_researcher(llm, memory):
 Báo cáo thị trường: {sanitize_for_prompt(market_research_report)}
 Tâm lý mạng xã hội: {sanitize_for_prompt(sentiment_report)}
 Tin tức: {sanitize_for_prompt(news_report)}
-Cơ bản doanh nghiệp: {sanitize_for_prompt(fundamentals_report)}
+Tài chính doanh nghiệp: {sanitize_for_prompt(fundamentals_report)}
 
 ## Lịch sử tranh luận
 {sanitize_for_prompt(history)}

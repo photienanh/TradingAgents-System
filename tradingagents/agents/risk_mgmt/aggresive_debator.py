@@ -46,7 +46,7 @@ def create_risky_debator(llm):
             f"Dữ liệu thị trường: {sanitize_for_prompt(market_research_report)}\n"
             f"Tâm lý: {sanitize_for_prompt(sentiment_report)}\n"
             f"Tin tức: {sanitize_for_prompt(news_report)}\n"
-            f"Cơ bản: {sanitize_for_prompt(fundamentals_report)}\n"
+            f"Tài chính doanh nghiệp: {sanitize_for_prompt(fundamentals_report)}\n"
             f"Lịch sử tranh luận: {sanitize_for_prompt(history)}\n"
             f"Safe Analyst: {sanitize_for_prompt(current_safe_response)}\n"
             f"Neutral Analyst: {sanitize_for_prompt(current_neutral_response)}\n\n"

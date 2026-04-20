@@ -56,7 +56,7 @@ async function loadSectionConfig() {
             market_report:          'Phân tích thị trường',
             sentiment_report:       'Phân tích tâm lý xã hội',
             news_report:            'Phân tích tin tức',
-            fundamentals_report:    'Phân tích cơ bản',
+            fundamentals_report:    'Phân tích tài chính doanh nghiệp',
             quant_report:           'Phân tích định lượng (AlphaGPT)',
             investment_plan:        'Quyết định nhóm nghiên cứu',
             trader_investment_plan: 'Kế hoạch nhóm giao dịch',
@@ -117,6 +117,13 @@ function _renderReport(md, cfg) {
  
     // ── Step 2: Xoá wrapper "## Báo cáo nhóm phân tích"
     cleaned = cleaned.replace(/^##\s+Báo cáo nhóm phân tích\s*\n?/im, '');
+
+    // ── Step 2.5: Normalize legacy section labels
+    // Hỗ trợ report cũ từng dùng "Phân tích cơ bản" để tránh bị dính vào section phía trên.
+    const fundamentalsCanonical = cfg.titles?.fundamentals_report || 'Phân tích tài chính doanh nghiệp';
+    cleaned = cleaned
+        .replace(/^##\s+Phân\s+tích\s+cơ\s+bản\s*$/gim, `### ${fundamentalsCanonical}`)
+        .replace(/^###\s+Phân\s+tích\s+cơ\s+bản\s*$/gim, `### ${fundamentalsCanonical}`);
  
     // ── Step 3: Normalize "## Tên section" → "### Tên section"
     cfg.labelOrder.forEach(label => {
@@ -530,12 +537,46 @@ async function updateProgressUI(data) {
 
 // ── Agent status ───────────────────────────────────────────────────────────
 
-const AGENT_ORDER = [
-    'Market Analyst', 'Social Analyst', 'News Analyst', 'Fundamentals Analyst',
-    'Bull Researcher', 'Bear Researcher', 'Research Manager', 'Trader',
-    'AlphaGPT Analyst', 'Risky Analyst', 'Safe Analyst', 'Neutral Analyst',
-    'Portfolio Manager',
+const AGENT_GROUPS = [
+    {
+        title: 'Analyst Team',
+        agents: ['Market Analyst', 'Social Analyst', 'News Analyst', 'Fundamentals Analyst', 'AlphaGPT Analyst'],
+    },
+    {
+        title: 'Researcher Team',
+        agents: ['Bull Researcher', 'Bear Researcher', 'Research Manager'],
+    },
+    {
+        title: 'Trader',
+        agents: ['Trader'],
+    },
+    {
+        title: 'Risk Management',
+        agents: ['Risky Analyst', 'Safe Analyst', 'Neutral Analyst', 'Portfolio Manager'],
+    },
 ];
+
+const AGENT_ORDER = AGENT_GROUPS.flatMap(group => group.agents);
+
+function formatStatusLabel(status) {
+    return {
+        pending: 'Pending',
+        in_progress: 'In Progress',
+        completed: 'Completed',
+        not_selected: 'Not Selected',
+    }[status] || status;
+}
+
+function createAgentStatusItem(agent, status) {
+    const div = document.createElement('div');
+    div.className = `agent-node ${status}`;
+    div.dataset.agent = agent;
+    div.dataset.status = status;
+    div.innerHTML = `
+        <div class="agent-node-name">${agent}</div>
+        <div class="agent-node-status">${getStatusIcon(status)} ${formatStatusLabel(status)}</div>`;
+    return div;
+}
 
 function updateAgentStatus(agentStatus) {
     const container = document.getElementById('agent-status');
@@ -543,20 +584,57 @@ function updateAgentStatus(agentStatus) {
         container.innerHTML = '<p>No agent status available</p>';
         return;
     }
+
+    container.className = 'agent-flow-board';
     container.innerHTML = '';
 
-    const ordered = [
-        ...AGENT_ORDER.filter(a => a in agentStatus).map(a => [a, agentStatus[a]]),
-        ...Object.entries(agentStatus).filter(([a]) => !AGENT_ORDER.includes(a)),
-    ];
+    for (const group of AGENT_GROUPS) {
+        const entries = group.agents
+            .filter(agent => agent in agentStatus)
+            .map(agent => [agent, agentStatus[agent]]);
 
-    for (const [agent, status] of ordered) {
-        const div = document.createElement('div');
-        div.className = `agent-item ${status}`;
-        div.innerHTML = `
-            <div class="agent-item-name">${agent}</div>
-            <div class="agent-item-status">${getStatusIcon(status)} ${status.replace('_', ' ')}</div>`;
-        container.appendChild(div);
+        if (!entries.length) continue;
+
+        const completedCount = entries.filter(([, status]) => status === 'completed').length;
+
+        const groupEl = document.createElement('section');
+        groupEl.className = 'tier-lane';
+
+        const headerEl = document.createElement('div');
+        headerEl.className = 'tier-lane-header';
+        headerEl.innerHTML = `
+            <h5 class="tier-lane-title">${group.title}</h5>
+            <span class="tier-lane-count">${completedCount}/${entries.length}</span>`;
+        groupEl.appendChild(headerEl);
+
+        const gridEl = document.createElement('div');
+        gridEl.className = 'tier-lane-grid';
+        for (const [agent, status] of entries) {
+            gridEl.appendChild(createAgentStatusItem(agent, status));
+        }
+
+        groupEl.appendChild(gridEl);
+        container.appendChild(groupEl);
+    }
+
+    const remaining = Object.entries(agentStatus).filter(([agent]) => !AGENT_ORDER.includes(agent));
+    if (remaining.length) {
+        const groupEl = document.createElement('section');
+        groupEl.className = 'tier-lane';
+
+        const headerEl = document.createElement('div');
+        headerEl.className = 'tier-lane-header';
+        headerEl.innerHTML = '<h5 class="tier-lane-title">Other</h5>';
+        groupEl.appendChild(headerEl);
+
+        const gridEl = document.createElement('div');
+        gridEl.className = 'tier-lane-grid';
+        for (const [agent, status] of remaining) {
+            gridEl.appendChild(createAgentStatusItem(agent, status));
+        }
+
+        groupEl.appendChild(gridEl);
+        container.appendChild(groupEl);
     }
 }
 

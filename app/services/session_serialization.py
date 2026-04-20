@@ -23,7 +23,7 @@ SECTION_TITLES: Dict[str, str] = {
     "market_report":         "Phân tích thị trường",
     "sentiment_report":      "Phân tích tâm lý xã hội",
     "news_report":           "Phân tích tin tức",
-    "fundamentals_report":   "Phân tích cơ bản",
+    "fundamentals_report":   "Phân tích tài chính doanh nghiệp",
     "quant_report":          "Phân tích định lượng (AlphaGPT)",
     "investment_plan":       "Quyết định nhóm nghiên cứu",
     "trader_investment_plan":"Kế hoạch nhóm giao dịch",
@@ -43,15 +43,22 @@ ORDERED_SECTIONS: List[str] = [
 
 # Tên các analyst agents theo đúng thứ tự hiển thị
 DEFAULT_AGENT_NAMES: List[str] = [
+    # Analyst team
     "Market Analyst",
     "Social Analyst",
     "News Analyst",
     "Fundamentals Analyst",
+    "AlphaGPT Analyst",
+
+    # Researcher team
     "Bull Researcher",
     "Bear Researcher",
     "Research Manager",
+
+    # Trader
     "Trader",
-    "AlphaGPT Analyst",
+
+    # Risk management
     "Risky Analyst",
     "Safe Analyst",
     "Neutral Analyst",
