@@ -44,11 +44,12 @@ DEFAULT_CONFIG = {
         "core_stock_apis":        "vnstock",
         "technical_indicators":   "vnstock",
         "fundamental_data":       "yfinance",
-        "news_data":              "google",
+        "news_data":              "cafef",
+        "social_data":            "f247",
         "global_data":            "vietstock",
         "insider_transaction_data":"yfinance",
     },
     "tool_vendors": {
-        "get_news": "google, vnstock",
+        "get_news": "cafef, vnstock",
     },
 }

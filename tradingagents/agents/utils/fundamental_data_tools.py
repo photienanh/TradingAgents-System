@@ -6,7 +6,7 @@ from tradingagents.dataflows.interface import route_to_vendor
 @tool
 def get_fundamentals(
     ticker: Annotated[str, "ticker symbol"],
-    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"],
+    curr_date: Annotated[str, "Current date you are trading at, yyyy-mm-dd"],
 ) -> str:
     """
     Retrieve comprehensive fundamental data for a given ticker symbol.
@@ -24,7 +24,7 @@ def get_fundamentals(
 def get_balance_sheet(
     ticker: Annotated[str, "ticker symbol"],
     freq: Annotated[str, "reporting frequency: annual/quarterly"] = "quarterly",
-    curr_date: Annotated[Optional[str], "current date you are trading at, yyyy-mm-dd"] = None,
+    curr_date: Annotated[Optional[str], "Current date you are trading at, yyyy-mm-dd"] = None,
 ) -> str:
     """
     Retrieve balance sheet data for a given ticker symbol.

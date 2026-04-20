@@ -1,6 +1,4 @@
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-import time
-import json
 from tradingagents.agents.utils.agent_utils import get_news, get_global_news
 from tradingagents.dataflows.config import get_config
 
@@ -27,31 +25,23 @@ Hãy phân tích toàn diện:
 - Rủi ro tin tức chưa được phản ánh vào giá
 
 Công cụ sử dụng:
-- get_news(query, start_date, end_date): cho tin theo công ty/chủ đề
+- get_news(query, curr_date, look_back_days): cho tin theo công ty/chủ đề
 - get_global_news(curr_date, look_back_days, limit): cho tin vĩ mô tổng quát
 
-## Cấu trúc báo cáo (BẮT BUỘC tuân theo)
+## Cấu trúc báo cáo (BẮT BUỘC tuân theo có thể thêm bảng số liệu nếu có)
 
 ### Phân Tích Tin Tức — {ticker} — {current_date}
 
 #### 1. Tin Tức Doanh Nghiệp
-[Các tin quan trọng trực tiếp liên quan đến công ty trong tuần qua]
 
 #### 2. Tin Tức Ngành
-[Xu hướng ngành, tin tức từ đối thủ, đối tác (nếu có)]
 
 #### 3. Bối Cảnh Vĩ Mô Trong Nước
-[Chính sách, quy định, kinh tế vĩ mô Việt Nam ảnh hưởng đến doanh nghiệp]
 
 #### 4. Bối Cảnh Quốc Tế
-[Tin tức toàn cầu có liên quan: Fed, tỷ giá, giá nguyên liệu, địa chính trị]
 
 #### 5. Đánh Giá Tác Động
-[Tổng hợp các tin tức có tác động tích cực/tiêu cực đến doanh nghiệp, phân loại theo mức độ]
-
-| Tin Tức | Loại | Tác Động Tiềm Năng | Mức Độ |
-|---------|------|-------------------|--------|
-[Bảng tổng hợp tin tức quan trọng]"""
+"""
         )
 
         prompt = ChatPromptTemplate.from_messages(

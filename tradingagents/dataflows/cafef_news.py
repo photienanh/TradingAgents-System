@@ -1,4 +1,4 @@
-from typing import Annotated, Union
+from typing import Annotated
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from bs4 import BeautifulSoup
@@ -285,38 +285,21 @@ def getNewsData(query, start_date, end_date, max_items=5):
     results.sort(key=_score_item, reverse=True)
     return results[:max_items]
 
-def get_google_news(
+def get_cafef_news(
     query: Annotated[str, "Query to search with"],
-    curr_date: Annotated[str, "Current date (yyyy-mm-dd) OR start date (yyyy-mm-dd)"],
-    look_back_days: Annotated[Union[int, str], "Look-back days (int) OR end date (yyyy-mm-dd)"],
+    curr_date: Annotated[str, "Current date (yyyy-mm-dd) format"],
+    look_back_days: Annotated[int, "Look-back days"] = 30,
 ) -> str:
-    """Unified interface supporting both date-range and lookback styles.
-
-    Supported call styles:
-    - get_google_news(query, curr_date, look_back_days)
-    - get_google_news(query, start_date, end_date)
-    """
+    """Fetch CafeF news using current date and look-back days only."""
     query = query.strip()
 
-    if isinstance(look_back_days, int):
-        end_date = curr_date
-        effective_lookback_days = max(look_back_days, 30)
-        start_dt = datetime.strptime(curr_date, "%Y-%m-%d") - relativedelta(days=effective_lookback_days)
-        start_date = start_dt.strftime("%Y-%m-%d")
-    else:
-        # route_to_vendor("get_news", ticker, start_date, end_date) passes end date as string
-        start_dt = datetime.strptime(curr_date, "%Y-%m-%d")
-        end_dt = datetime.strptime(look_back_days, "%Y-%m-%d")
-        if start_dt > end_dt:
-            start_dt, end_dt = end_dt, start_dt
+    if look_back_days < 0:
+        return "look_back_days phải >= 0"
 
-        # Enforce a minimum query window of 1 month.
-        min_start_dt = end_dt - relativedelta(months=1)
-        if start_dt > min_start_dt:
-            start_dt = min_start_dt
-
-        start_date = start_dt.strftime("%Y-%m-%d")
-        end_date = end_dt.strftime("%Y-%m-%d")
+    end_date = curr_date
+    effective_lookback_days = max(look_back_days, 30)
+    start_dt = datetime.strptime(curr_date, "%Y-%m-%d") - relativedelta(days=effective_lookback_days)
+    start_date = start_dt.strftime("%Y-%m-%d")
 
     news_results = getNewsData(query, start_date, end_date)
 
@@ -332,12 +315,3 @@ def get_google_news(
         return ""
 
     return f"## Tin tức về {query}, từ {start_date} đến {end_date}:\n\n{news_str}"
-
-
-def get_news(
-    ticker: Annotated[str, "Ticker symbol"],
-    start_date: Annotated[str, "Start date in yyyy-mm-dd format"],
-    end_date: Annotated[str, "End date in yyyy-mm-dd format"],
-) -> str:
-    """Adapter for route_to_vendor('get_news', ticker, start_date, end_date)."""
-    return get_google_news(ticker, start_date, end_date)

@@ -35,31 +35,22 @@ Công cụ sử dụng:
 - get_cashflow: báo cáo lưu chuyển tiền tệ
 - get_income_statement: báo cáo kết quả kinh doanh
 
-## Cấu trúc báo cáo (BẮT BUỘC tuân theo)
+## Cấu trúc báo cáo (BẮT BUỘC tuân theo, có thể thêm bảng số liệu nếu có)
 
 ### Phân Tích Tài Chính Doanh Nghiệp — {ticker} — {current_date}
 
 #### 1. Tổng Quan Doanh Nghiệp
-[Mô hình kinh doanh, ngành, vị thế thị trường, đặc điểm nổi bật]
 
 #### 2. Kết Quả Kinh Doanh
-[Doanh thu, lợi nhuận, biên lợi nhuận, so sánh cùng kỳ và xu hướng, bảng số liệu (nếu có)]
 
-#### 3. Sức Khỏe Bảng Cân Đối Kế Toán
-[Cấu trúc vốn, nợ, thanh khoản, chất lượng tài sản, bảng số liệu (nếu có)]
+#### 3. Bảng Cân Đối Kế Toán
 
 #### 4. Dòng Tiền
-[FCF, chất lượng lợi nhuận, khả năng tái đầu tư và trả cổ tức, bảng số liệu (nếu có)]
 
 #### 5. Định Giá
-[P/E, P/B, P/S, EV/EBITDA — so sánh với trung bình ngành và lịch sử, bảng số liệu (nếu có)]
 
 #### 6. Điểm Mạnh & Điểm Yếu Cơ Bản
-[Liệt kê khách quan các điểm mạnh và rủi ro từ góc độ fundamental]
-
-| Chỉ Số | Giá Trị | So Với Ngành | Xu Hướng |
-|--------|---------|-------------|----------|
-[Bảng tổng hợp các chỉ số tài chính quan trọng]"""
+"""
         )
 
         prompt = ChatPromptTemplate.from_messages(

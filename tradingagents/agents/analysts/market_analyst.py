@@ -56,32 +56,24 @@ Quy tắc sử dụng tool:
 - Gọi get_indicators với danh sách chỉ báo cụ thể, lưu ý dùng đúng tên chỉ báo như đã định nghĩa ở trên. Chọn chỉ báo đa dạng, bổ trợ nhau và tránh dư thừa 
 - Gọi get_market_context(ticker, current_date) để lấy bối cảnh thị trường VN30 trong thời gian gần đây
 - end_date của get_stock_data phải bằng hoặc trước current_date tối đa 7 ngày giao dịch, ưu tiên end_date gần current_date nhất để có dữ liệu cập nhật nhất (nhưng tránh ngày nghỉ giao dịch). start_date nên trong khoảng 30-180 ngày trước end_date.
+- TUYỆT ĐỐI KHÔNG TỰ Ý lấy dữ liệu giai đoạn cũ nhiều năm (ví dụ năm 2023). Ngày phân tích hiện tại đang là {current_date}.
 
-## Cấu trúc báo cáo (BẮT BUỘC tuân theo)
+## Cấu trúc báo cáo (BẮT BUỘC tuân theo có thể thêm bảng số liệu nếu có)
 
 ### Phân Tích Thị Trường — {ticker} — {current_date}
 
 #### 1. Tổng Quan Giá
-[Mô tả biến động giá gần đây, các mức giá quan trọng]
 
 #### 2. Xu Hướng
-[Phân tích xu hướng ngắn/trung/dài hạn, so sánh với VN30]
 
 #### 3. Chỉ Báo Kỹ Thuật
-[Phân tích từng chỉ báo đã chọn, ý nghĩa tín hiệu]
 
 #### 4. Hỗ Trợ & Kháng Cự
-[Các mức giá then chốt cần chú ý]
 
 #### 5. Khối Lượng & Breadth
-[Phân tích volume, so sánh với breadth VN30]
 
 #### 6. Rủi Ro Kỹ Thuật
-[Các yếu tố rủi ro từ góc độ kỹ thuật]
-
-| Chỉ Báo | Giá Trị | Tín Hiệu | Mức Độ |
-|---------|---------|----------|--------|
-[Bảng tổng hợp các chỉ báo chính]"""
+"""
         )
 
         prompt = ChatPromptTemplate.from_messages(

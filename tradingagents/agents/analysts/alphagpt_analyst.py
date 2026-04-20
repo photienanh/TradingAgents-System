@@ -307,7 +307,7 @@ Cấu trúc báo cáo BẮT BUỘC (giữ đúng headers):
 ### 5. Kết luận định lượng
 
 Quy tắc BẮT BUỘC cho mục 3:
-- Mỗi alpha dùng header: #### Alpha N — <tên ý tưởng> [tags] (trọng số X%)
+- Mỗi alpha dùng header: #### Alpha N — <tên ý tưởng> [tags]
 - Dòng đầu tiên PHẢI là: **Formula:** `<expression đầy đủ>`
 - Dòng thứ hai: **Loại tín hiệu:** <family> — <mô tả ngắn> (nếu family là UNKNOWN thì không cần trường này)
 - Sau đó mới phân tích IC, Sharpe, ý nghĩa kinh tế"""

@@ -3,9 +3,10 @@ from typing import Annotated, Optional
 # Import from vendor-specific modules
 from .y_finance import get_YFin_data_online, get_indicators as get_yfinance_indicators, get_fundamentals as get_yfinance_fundamentals, get_balance_sheet as get_yfinance_balance_sheet, get_cashflow as get_yfinance_cashflow, get_income_statement as get_yfinance_income_statement, get_insider_transactions as get_yfinance_insider_transactions, get_market_context as get_yfinance_market_context
 from .vnstock_finance import get_stock_data as get_vnstock_stock_data, get_indicators as get_vnstock_indicators, get_fundamentals as get_vnstock_fundamentals, get_balance_sheet as get_vnstock_balance_sheet, get_cashflow as get_vnstock_cashflow, get_income_statement as get_vnstock_income_statement, get_news as get_vnstock_news, get_market_context as get_vnstock_market_context
-from .cafef_news import get_google_news
+from .cafef_news import get_cafef_news
 from .vietstock_news import get_vietstock_global_news
 from .openai import get_stock_news_openai, get_global_news_openai, get_fundamentals_openai
+from .social_media import get_f247_forum_posts, get_ticker_news
 
 # Configuration and routing logic
 from .config import get_config
@@ -40,6 +41,13 @@ TOOLS_CATEGORIES = {
             "get_news",
         ]
     },
+    "social_data": {
+        "description": "Social/forum discussion and ticker-specific social news",
+        "tools": [
+            "get_f247_forum_posts",
+            "get_ticker_news",
+        ]
+    },
     "global_data": {
         "description": "Global macroeconomic data and news",
         "tools": [
@@ -59,7 +67,8 @@ VENDOR_LIST = [
     "yfinance",
     "vietstock",
     "openai",
-    "google",
+    "cafef",
+    "f247",
 ]
 
 
@@ -126,12 +135,19 @@ VENDOR_METHODS = {
     # news_data
     "get_news": {
         "vnstock": get_vnstock_news,
-        "google": get_google_news,
+        "cafef": get_cafef_news,
         "openai": get_stock_news_openai,
     },
     "get_global_news": {
         "vietstock": get_vietstock_global_news,
         "openai": get_global_news_openai,
+    },
+    # social_data
+    "get_f247_forum_posts": {
+        "f247": get_f247_forum_posts,
+    },
+    "get_ticker_news": {
+        "f247": get_ticker_news,
     },
     # insider_transaction_data
     "get_insider_transactions": {

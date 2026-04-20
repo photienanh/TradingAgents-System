@@ -419,14 +419,6 @@ async function startAnalysis() {
         deep_think_llm:  formData.get('deep_think_llm'),
         quick_think_llm: formData.get('quick_think_llm'),
         max_debate_rounds: parseInt(formData.get('research_depth')),
-        data_vendors: {
-            core_stock_apis:          "vnstock",
-            technical_indicators:     "vnstock",
-            fundamental_data:         "vnstock",
-            news_data:                "google",
-            global_data:              "vietstock",
-            insider_transaction_data: "yfinance",
-        },
     };
 
     try {

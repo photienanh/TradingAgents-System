@@ -299,15 +299,17 @@ def _derive_realtime_step(chunk, max_debate_rounds=1, max_risk_rounds=1, selecte
         tool_names = _extract_tool_call_names(messages[-1])
         if tool_names:
             tool_step_map = {
-                "get_stock_data":           ("⏳ Đang crawl stock data", 15),
-                "get_indicators":           ("⏳ Đang tính technical indicators", 22),
-                "get_news":                 ("⏳ Đang crawl tin tức và dữ liệu xã hội", 30),
-                "get_global_news":          ("⏳ Đang tổng hợp tin tức vĩ mô", 38),
-                "get_fundamentals":         ("⏳ Đang lấy dữ liệu fundamentals", 46),
-                "get_balance_sheet":        ("⏳ Đang lấy bảng cân đối kế toán", 50),
-                "get_cashflow":             ("⏳ Đang lấy báo cáo lưu chuyển tiền tệ", 52),
-                "get_income_statement":     ("⏳ Đang lấy báo cáo kết quả kinh doanh", 54),
-                "get_insider_transactions": ("⏳ Đang lấy giao dịch nội bộ", 56),
+                "get_stock_data":           (" Đang crawl stock data", 15),
+                "get_indicators":           (" Đang tính technical indicators", 22),
+                "get_ticker_news":          (" Đang crawl tin tức theo mã", 30),
+                "get_f247_forum_posts":     (" Đang thu thập thảo luận diễn đàn", 32),
+                "get_news":                 (" Đang thu thập tin tức liên quan đến doanh nghiệp", 34),
+                "get_global_news":          (" Đang tổng hợp tin tức vĩ mô", 38),
+                "get_fundamentals":         (" Đang lấy dữ liệu fundamentals", 46),
+                "get_balance_sheet":        (" Đang lấy bảng cân đối kế toán", 50),
+                "get_cashflow":             (" Đang lấy báo cáo lưu chuyển tiền tệ", 52),
+                "get_income_statement":     (" Đang lấy báo cáo kết quả kinh doanh", 54),
+                "get_insider_transactions": (" Đang lấy giao dịch nội bộ", 56),
             }
             if tool_names[0] in tool_step_map:
                 return tool_step_map[tool_names[0]]

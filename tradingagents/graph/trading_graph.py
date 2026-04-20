@@ -24,6 +24,7 @@ from tradingagents.agents.utils.agent_utils import (
     get_stock_data, get_indicators, get_market_context, get_fundamentals,
     get_balance_sheet, get_cashflow, get_income_statement,
     get_news, get_insider_transactions, get_global_news,
+    get_f247_forum_posts, get_ticker_news,
 )
 
 from .conditional_logic import ConditionalLogic
@@ -196,7 +197,7 @@ class TradingAgentsGraph:
     def _create_tool_nodes(self) -> Dict[str, ToolNode]:
         return {
             "market":       ToolNode([get_stock_data, get_indicators, get_market_context]),
-            "social":       ToolNode([get_news]),
+            "social":       ToolNode([get_f247_forum_posts, get_ticker_news]),
             "news":         ToolNode([get_news, get_global_news, get_insider_transactions]),
             "fundamentals": ToolNode([get_fundamentals, get_balance_sheet, get_cashflow, get_income_statement]),
         }

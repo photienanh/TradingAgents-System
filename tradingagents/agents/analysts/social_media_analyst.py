@@ -1,8 +1,5 @@
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-import time
-import json
-from tradingagents.agents.utils.agent_utils import get_news
-from tradingagents.dataflows.config import get_config
+from tradingagents.agents.utils.agent_utils import get_f247_forum_posts, get_ticker_news
 
 
 def create_social_media_analyst(llm):
@@ -11,7 +8,8 @@ def create_social_media_analyst(llm):
         ticker = state["company_of_interest"]
 
         tools = [
-            get_news,
+            get_f247_forum_posts,
+            get_ticker_news,
         ]
 
         system_message = (
@@ -25,30 +23,23 @@ Hãy phân tích toàn diện:
 - Các sự kiện/catalyst tiềm năng đang được thảo luận
 - Mức độ quan tâm và hoạt động của nhà đầu tư cá nhân
 
-Dùng công cụ get_news(query, start_date, end_date) để tìm tin tức và thảo luận liên quan.
+Dùng công cụ:
+- get_f247_forum_posts(ticker, curr_date, look_back_days, max_threads, max_posts_per_thread)
+- get_ticker_news(ticker, curr_date, look_back_days, max_items)
+để lấy thảo luận social + tin tức liên quan.
 
-## Cấu trúc báo cáo (BẮT BUỘC tuân theo)
+## Cấu trúc báo cáo (BẮT BUỘC tuân theo, có thể thêm bảng số liệu nếu có)
 
 ### Phân Tích Tâm Lý & Mạng Xã Hội — {ticker} — {current_date}
 
 #### 1. Tổng Quan Tâm Lý
-[Đánh giá tổng thể sentiment: tích cực/tiêu cực/trung lập, độ mạnh]
 
 #### 2. Tin Tức Doanh Nghiệp Gần Đây
-[Các tin tức quan trọng, phản ứng thị trường]
 
 #### 3. Thảo Luận Mạng Xã Hội
-[Các chủ đề đang được thảo luận, quan điểm phổ biến]
 
-#### 4. Catalyst Tiềm Năng
-[Các sự kiện/tin tức có thể ảnh hưởng đến giá trong tương lai gần]
-
-#### 5. Rủi Ro Từ Sentiment
-[Các rủi ro từ tâm lý thị trường: tin đồn, overreaction, FOMO/panic]
-
-| Khía Cạnh | Đánh Giá | Mức Độ Ảnh Hưởng |
-|-----------|---------|-----------------|
-[Bảng tổng hợp các điểm chính]"""
+#### 4. Rủi Ro Hoặc Tiềm Năng Từ Tâm Lý Thị Trường
+"""
         )
 
         prompt = ChatPromptTemplate.from_messages(
@@ -56,7 +47,7 @@ Dùng công cụ get_news(query, start_date, end_date) để tìm tin tức và 
                 (
                     "system",
                     "Bạn là Social Media & Sentiment Analyst đang thu thập dữ liệu tâm lý thị trường."
-                    " Hãy dùng các công cụ để tìm tin tức và thảo luận liên quan."
+                    " Hãy dùng các công cụ để lấy dữ liệu diễn đàn và tin tức theo mã."
                     " Nhiệm vụ của bạn là cung cấp phân tích sentiment khách quan — KHÔNG đưa ra khuyến nghị BUY/SELL/HOLD."
                     " Bạn có quyền truy cập: {tool_names}.\n{system_message}"
                     " Ngày hiện tại: {current_date}. Mã cần phân tích: {ticker}",
