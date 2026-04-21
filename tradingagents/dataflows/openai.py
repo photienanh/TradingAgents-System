@@ -1,5 +1,6 @@
 from openai import OpenAI
 from typing import Any
+from datetime import datetime, timedelta
 
 from .config import get_config
 
@@ -29,9 +30,18 @@ def _extract_response_text(response: Any) -> str:
     return str(response)
 
 
-def get_stock_news_openai(query, start_date, end_date):
+def get_stock_news_openai(query, curr_date, look_back_days=30):
     config = get_config()
     client = OpenAI(base_url=config["backend_url"])
+
+    try:
+        end_dt = datetime.strptime(curr_date, "%Y-%m-%d")
+    except ValueError:
+        return "Định dạng curr_date không hợp lệ. Vui lòng dùng yyyy-mm-dd."
+
+    start_dt = end_dt - timedelta(days=max(look_back_days, 30))
+    start_date = start_dt.strftime("%Y-%m-%d")
+    end_date = end_dt.strftime("%Y-%m-%d")
 
     response = client.responses.create(
         model=config["quick_think_llm"],
@@ -69,7 +79,7 @@ def get_stock_news_openai(query, start_date, end_date):
     return _extract_response_text(response)
 
 
-def get_global_news_openai(curr_date, look_back_days=7, limit=5):
+def get_global_news_openai(curr_date, look_back_days=7, limit=10):
     config = get_config()
     client = OpenAI(base_url=config["backend_url"])
 
@@ -110,7 +120,7 @@ def get_global_news_openai(curr_date, look_back_days=7, limit=5):
     return _extract_response_text(response)
 
 
-def get_fundamentals_openai(ticker, curr_date):
+def get_fundamentals_openai(ticker :str):
     config = get_config()
     client = OpenAI(base_url=config["backend_url"])
 
@@ -124,8 +134,7 @@ def get_fundamentals_openai(ticker, curr_date):
                         "type": "input_text",
                         "text": (
                             f"Hãy tổng hợp thông tin cơ bản (fundamental) cho mã {ticker} phù hợp thị trường chứng khoán Việt Nam "
-                            f"trong khoảng từ tháng trước {curr_date} đến tháng của {curr_date}. "
-                            f"Chỉ lấy dữ liệu trong đúng giai đoạn này. Trả kết quả bằng tiếng Việt dưới dạng bảng, bao gồm tối thiểu: "
+                            f"Chỉ lấy dữ liệu trong đúng giai đoạn gần đây. Trả kết quả bằng tiếng Việt dưới dạng bảng, bao gồm tối thiểu: "
                             f"P/E, P/B, P/S, biên lợi nhuận, tăng trưởng doanh thu/lợi nhuận, dòng tiền, nợ vay, ROE/ROA, "
                             f"và nhận định định giá (rẻ/hợp lý/đắt) theo bối cảnh ngành tại Việt Nam."
                         ),

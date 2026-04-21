@@ -390,8 +390,6 @@ def get_f247_forum_posts(
     Scrape F247.com forum discussions tagged with a stock ticker.
     Returns threads sorted by recent activity, with posts as conversation blocks.
     """
-    if look_back_days < 0:
-        return "look_back_days phải >= 0"
 
     try:
         base_dt = datetime.strptime(curr_date, "%Y-%m-%d") if curr_date else datetime.now()
@@ -442,8 +440,6 @@ def get_ticker_news(
     Tìm tin tức về mã cổ phiếu trên Google News.
     Trả về tiêu đề + mô tả ngắn, giới hạn theo khoảng thời gian.
     """
-    if look_back_days < 0:
-        return "look_back_days phải >= 0"
 
     try:
         base_dt = datetime.strptime(curr_date, "%Y-%m-%d") if curr_date else datetime.now()

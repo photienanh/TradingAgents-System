@@ -13,7 +13,7 @@ VIETSTOCK_GLOBAL_RSS_FEEDS = [
 	"https://vietstock.vn/772/the-gioi/tai-chinh-quoc-te.rss",
 	"https://vietstock.vn/775/the-gioi/kinh-te-nganh.rss",
 ]
-VIETSTOCK_ITEMS_PER_FEED = 8
+VIETSTOCK_ITEMS_PER_FEED = 5
 VIETSTOCK_TOTAL_ITEMS_MIN = VIETSTOCK_ITEMS_PER_FEED * len(VIETSTOCK_GLOBAL_RSS_FEEDS)
 
 
@@ -84,7 +84,7 @@ def _fetch_feed_items(feed_url: str):
 def get_vietstock_global_news(
 	curr_date: Annotated[str, "Current date in yyyy-mm-dd format"],
 	look_back_days: Annotated[int, "Number of days to look back"] = 7,
-	limit: Annotated[int, "Maximum number of articles to return"] = 24,
+	limit: Annotated[int, "Maximum number of articles to return"] = 15,
 ) -> str:
 	curr_dt = datetime.strptime(curr_date, "%Y-%m-%d")
 	start_dt = curr_dt - timedelta(days=look_back_days)

@@ -59,11 +59,19 @@ class Vnstock_Stats:
         
 def get_stock_data(
     symbol: Annotated[str, "ticker symbol"],
-    start_date: Annotated[str, "start date for historical data, yyyy-mm-dd"],
-    end_date: Annotated[str, "end date for historical data, yyyy-mm-dd"],
+    curr_date: Annotated[str, "current date for historical data, yyyy-mm-dd"],
+    look_back_days: Annotated[int, "number of days to look back"],
 ):
+    if look_back_days < 0:
+        return "look_back_days phải >= 0"
+
     symbol = symbol.upper()
     try:
+        end_dt = datetime.strptime(curr_date, "%Y-%m-%d")
+        start_dt = end_dt - relativedelta(days=look_back_days)
+        start_date = start_dt.strftime("%Y-%m-%d")
+        end_date = end_dt.strftime("%Y-%m-%d")
+
         data = Quote(symbol=symbol).history(start_date, end_date)
         if data.empty:
             return f"Không có lịch sử dữ liệu cho {symbol} từ {start_date} đến {end_date}."
@@ -113,7 +121,7 @@ def get_indicators(
     before = curr_date_dt - relativedelta(days=look_back_days)
 
     try:
-        indicator_data = _get_stock_stats_bulk(symbol, indicator, curr_date)
+        indicator_data = _get_stock_stats_bulk(symbol, indicator)
 
         current_dt = curr_date_dt
         date_values = []
@@ -387,7 +395,6 @@ def get_market_context(
 def _get_stock_stats_bulk(
     symbol: Annotated[str, "ticker symbol of the company"],
     indicator: Annotated[str, "technical indicator to calculate"],
-    curr_date: Annotated[str, "current date for reference (not used)"],
 ) -> dict:
     """Bulk calculation for vnstock indicators with local cache."""
     from stockstats import wrap
@@ -476,7 +483,6 @@ def get_stockstats_indicator(
 def get_balance_sheet(
     symbol: Annotated[str, "ticker symbol of the company"],
     freq: Annotated[str, "frequency of data: 'year' or 'quarter'"] = "quarter",
-    curr_date: Annotated[Optional[str], "current date (not used)"] = None
 ):
     try:
         if freq.lower() == "quaterly":
@@ -513,7 +519,6 @@ def get_balance_sheet(
 def get_cashflow(
     symbol: Annotated[str, "ticker symbol of the company"],
     freq: Annotated[str, "frequency of data: 'year' or 'quarter'"] = "year",
-    curr_date: Annotated[Optional[str], "current date (not used for yfinance)"] = None
 ):
     try:
         if freq.lower() == "quaterly":
@@ -552,7 +557,6 @@ def get_cashflow(
 def get_income_statement(
     symbol: Annotated[str, "ticker symbol of the company"],
     freq: Annotated[str, "frequency of data: 'year' or 'quarter'"] = "quarter",
-    curr_date: Annotated[Optional[str], "current date (not used)"] = None
 ):
 
     try:
@@ -591,7 +595,6 @@ def get_income_statement(
 
 def get_fundamentals(
     symbol: Annotated[str, "ticker symbol of the company"],
-    curr_date: Annotated[Optional[str], "current date (not used)"] = None,
 ):
     try:
         ticker = symbol.upper()
@@ -776,23 +779,18 @@ def _pick_news_timestamp(df: pd.DataFrame) -> pd.Series:
 
 def get_news(
     ticker: Annotated[str, "ticker symbol of the company"],
-    start_date: Annotated[str, "Start date in yyyy-mm-dd format"],
-    end_date: Annotated[str, "End date in yyyy-mm-dd format"],
+    curr_date: Annotated[str, "Current trading date in yyyy-mm-dd format"],
+    look_back_days: Annotated[int, "Number of days to look back"] = 30,
 ) -> str:
-    """Get company news from vnstock VCI source and filter by date range."""
+    """Get company news from vnstock VCI source using current date and look-back window."""
+
     try:
-        start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-        end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+        end_dt = datetime.strptime(curr_date, "%Y-%m-%d")
     except ValueError:
         return "Định dạng ngày không hợp lệ. Vui lòng dùng yyyy-mm-dd."
 
-    if start_dt > end_dt:
-        start_dt, end_dt = end_dt, start_dt
-
-    # Enforce a minimum query window of 1 month.
-    min_start_dt = end_dt - relativedelta(months=1)
-    if start_dt > min_start_dt:
-        start_dt = min_start_dt
+    effective_lookback_days = max(look_back_days, 30)
+    start_dt = end_dt - relativedelta(days=effective_lookback_days)
 
     start_date = start_dt.strftime("%Y-%m-%d")
     end_date = end_dt.strftime("%Y-%m-%d")

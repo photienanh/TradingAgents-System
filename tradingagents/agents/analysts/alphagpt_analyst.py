@@ -303,7 +303,7 @@ Cấu trúc báo cáo BẮT BUỘC (giữ đúng headers):
 ### 1. Tổng quan tín hiệu
 ### 2. Chất lượng mô hình
 ### 3. Phân tích từng alpha
-### 4. Rủi ro và cảnh báo
+### 4. Đánh giá rủi ro / tích cực
 ### 5. Kết luận định lượng
 
 Quy tắc BẮT BUỘC cho mục 3:

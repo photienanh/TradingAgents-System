@@ -6,8 +6,8 @@ from tradingagents.dataflows.interface import route_to_vendor
 def get_f247_forum_posts(
     ticker: Annotated[str, "Ticker symbol"],
     curr_date: Annotated[str, "Current date you are trading at, yyyy-mm-dd format"],
-    look_back_days: Annotated[int, "Number of days to look back"] = 14,
-    max_threads: Annotated[int, "Maximum number of threads to include"] = 5,
+    look_back_days: Annotated[int, "Number of days to look back"] = 30,
+    max_threads: Annotated[int, "Maximum number of threads to include"] = 10,
     max_posts_per_thread: Annotated[int, "Maximum number of posts per thread"] = 10,
 ) -> str:
     """
@@ -29,7 +29,7 @@ def get_ticker_news(
     ticker: Annotated[str, "Ticker symbol"],
     curr_date: Annotated[str, "Current date you are trading at, yyyy-mm-dd format"],
     look_back_days: Annotated[int, "Number of days to look back"] = 30,
-    max_items: Annotated[int, "Maximum number of articles to return"] = 5,
+    max_items: Annotated[int, "Maximum number of articles to return"] = 10,
 ) -> str:
     """
     Retrieve ticker-specific news from RSS/news sources.

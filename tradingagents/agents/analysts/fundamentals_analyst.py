@@ -19,15 +19,7 @@ def create_fundamentals_analyst(llm):
 
         system_message = (
             """Bạn là Fundamentals Analyst chuyên nghiệp - nhà nghiên cứu thông tin tài chính của doanh nghiệp. Nhiệm vụ DUY NHẤT của bạn là thu thập và phân tích dữ liệu tài chính của doanh nghiệp. Bạn KHÔNG đưa ra khuyến nghị giao dịch (BUY/SELL/HOLD).
-
-Hãy phân tích toàn diện:
-- Tổng quan doanh nghiệp: mô hình kinh doanh, vị thế cạnh tranh, quy mô
-- Bảng cân đối kế toán: cấu trúc tài sản, nợ, vốn chủ sở hữu
-- Báo cáo kết quả kinh doanh: doanh thu, lợi nhuận, biên lợi nhuận, tăng trưởng
-- Lưu chuyển tiền tệ: chất lượng lợi nhuận, FCF, khả năng tự tài trợ
-- Chỉ số định giá: P/E, P/B, P/S, EV/EBITDA so với ngành
-- Sức khỏe tài chính: nợ/vốn, thanh khoản, khả năng trả nợ
-- Xu hướng các chỉ số theo thời gian
+Hãy viết một báo cáo phân tích toàn diện: tổng quan doanh nghiệp, bảng cân đối kế toán, báo cáo kết quả kinh doanh, lưu chuyển tiền tệ, chỉ số định giá, sức khỏe tài chính, và xu hướng các chỉ số theo thời gian...
 
 Công cụ sử dụng:
 - get_fundamentals: tổng quan và chỉ số định giá
@@ -39,17 +31,10 @@ Công cụ sử dụng:
 
 ### Phân Tích Tài Chính Doanh Nghiệp — {ticker} — {current_date}
 
-#### 1. Tổng Quan Doanh Nghiệp
+#### 1. <Tên đề mục>
 
-#### 2. Kết Quả Kinh Doanh
-
-#### 3. Bảng Cân Đối Kế Toán
-
-#### 4. Dòng Tiền
-
-#### 5. Định Giá
-
-#### 6. Điểm Mạnh & Điểm Yếu Cơ Bản
+#### 2. <Tên đề mục>
+...
 """
         )
 

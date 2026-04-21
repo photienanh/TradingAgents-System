@@ -19,26 +19,24 @@ Hãy phân tích toàn diện:
 - Tâm lý thị trường đối với mã cổ phiếu (tích cực/tiêu cực/trung lập, mức độ)
 - Các luồng thảo luận chính trên mạng xã hội và diễn đàn đầu tư
 - Tin tức doanh nghiệp gần đây và phản ứng thị trường
-- Xu hướng sentiment theo thời gian (có thay đổi không?)
-- Các sự kiện/catalyst tiềm năng đang được thảo luận
+- Xu hướng tâm lý thị trường
+- Các sự kiện tiềm năng đang được thảo luận
 - Mức độ quan tâm và hoạt động của nhà đầu tư cá nhân
+- Các thông tin khác nếu có
 
 Dùng công cụ:
-- get_f247_forum_posts(ticker, curr_date, look_back_days, max_threads, max_posts_per_thread)
-- get_ticker_news(ticker, curr_date, look_back_days, max_items)
+- get_f247_forum_posts
+- get_ticker_news
 để lấy thảo luận social + tin tức liên quan.
 
 ## Cấu trúc báo cáo (BẮT BUỘC tuân theo, có thể thêm bảng số liệu nếu có)
 
 ### Phân Tích Tâm Lý & Mạng Xã Hội — {ticker} — {current_date}
 
-#### 1. Tổng Quan Tâm Lý
+#### 1. <Tên đề mục>
 
-#### 2. Tin Tức Doanh Nghiệp Gần Đây
-
-#### 3. Thảo Luận Mạng Xã Hội
-
-#### 4. Rủi Ro Hoặc Tiềm Năng Từ Tâm Lý Thị Trường
+#### 2. <Tên đề mục>
+...
 """
         )
 

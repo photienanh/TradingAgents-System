@@ -19,12 +19,16 @@ def _display_ticker(symbol: str) -> str:
 
 def get_YFin_data_online(
     symbol: Annotated[str, "ticker symbol of the company"],
-    start_date: Annotated[str, "Start date in yyyy-mm-dd format"],
-    end_date: Annotated[str, "End date in yyyy-mm-dd format"],
+    curr_date: Annotated[str, "Current date in yyyy-mm-dd format"],
+    look_back_days: Annotated[int, "Number of days to look back"],
 ):
+    if look_back_days < 0:
+        return "look_back_days phải >= 0"
 
-    datetime.strptime(start_date, "%Y-%m-%d")
-    datetime.strptime(end_date, "%Y-%m-%d")
+    end_dt = datetime.strptime(curr_date, "%Y-%m-%d")
+    start_dt = end_dt - relativedelta(days=look_back_days)
+    start_date = start_dt.strftime("%Y-%m-%d")
+    end_date = end_dt.strftime("%Y-%m-%d")
 
     # Create ticker object
     ticker = yf.Ticker(_normalize_vn_ticker(symbol))
@@ -151,7 +155,7 @@ def get_indicators(
 
     # Optimized: Get stock data once and calculate indicators for all dates
     try:
-        indicator_data = _get_stock_stats_bulk(symbol, indicator, curr_date)
+        indicator_data = _get_stock_stats_bulk(symbol, indicator)
         
         # Generate the date range we need
         current_dt = curr_date_dt
@@ -454,7 +458,6 @@ def get_market_context(
 def _get_stock_stats_bulk(
     symbol: Annotated[str, "ticker symbol of the company"],
     indicator: Annotated[str, "technical indicator to calculate"],
-    curr_date: Annotated[str, "current date for reference"]
 ) -> dict:
     """
     Optimized bulk calculation of stock stats indicators.
@@ -548,7 +551,6 @@ def get_stockstats_indicator(
 def get_balance_sheet(
     ticker: Annotated[str, "ticker symbol of the company"],
     freq: Annotated[str, "frequency of data: 'annual' or 'quarterly'"] = "quarterly",
-    curr_date: Annotated[Optional[str], "current date (not used for yfinance)"] = None
 ):
     """Get balance sheet data from yfinance."""
     try:
@@ -634,7 +636,6 @@ def get_balance_sheet(
 def get_cashflow(
     ticker: Annotated[str, "ticker symbol of the company"],
     freq: Annotated[str, "frequency of data: 'annual' or 'quarterly'"] = "quarterly",
-    curr_date: Annotated[Optional[str], "current date (not used for yfinance)"] = None
 ):
     """Get cash flow data from yfinance."""
     try:
@@ -728,7 +729,6 @@ def get_cashflow(
 def get_income_statement(
     ticker: Annotated[str, "ticker symbol of the company"],
     freq: Annotated[str, "frequency of data: 'annual' or 'quarterly'"] = "quarterly",
-    curr_date: Annotated[Optional[str], "current date (not used for yfinance)"] = None
 ):
     """Get income statement data from yfinance."""
     try:
@@ -845,7 +845,6 @@ def get_insider_transactions(
 
 def get_fundamentals(
     ticker: Annotated[str, "ticker symbol of the company"],
-    curr_date: Annotated[Optional[str], "current date (not used for yfinance)"] = None,
 ):
     """Get consolidated fundamentals report from yfinance."""
     ticker_display = _display_ticker(ticker)

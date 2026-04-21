@@ -293,9 +293,6 @@ def get_cafef_news(
     """Fetch CafeF news using current date and look-back days only."""
     query = query.strip()
 
-    if look_back_days < 0:
-        return "look_back_days phải >= 0"
-
     end_date = curr_date
     effective_lookback_days = max(look_back_days, 30)
     start_dt = datetime.strptime(curr_date, "%Y-%m-%d") - relativedelta(days=effective_lookback_days)
