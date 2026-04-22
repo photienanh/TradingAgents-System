@@ -25,7 +25,10 @@ const ANALYST_TOOLS = {
     },
     'Social Analyst': {
         desc: 'Phân tích tâm lý & mạng xã hội',
-        tools: [{ name: 'get_news(query, start_date, end_date)', desc: 'Thu thập tin tức/thảo luận theo mã.' }],
+        tools: [
+            { name: 'get_f247_forum_posts(ticker, curr_date, look_back_days, max_threads, max_posts_per_thread)', desc: 'Thu thập thảo luận F247 theo mã cổ phiếu.' },
+            { name: 'get_ticker_news(ticker, curr_date, look_back_days, max_items)', desc: 'Tổng hợp tin xã hội theo mã từ Google News.' },
+        ],
     },
     'News Analyst': {
         desc: 'Phân tích tin tức đa nguồn',

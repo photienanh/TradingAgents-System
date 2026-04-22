@@ -3,8 +3,18 @@ from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 import yfinance as yf
 import pandas as pd
-from .stockstats_utils import StockstatsUtils
-from alpha.core.universe import VN30_SYMBOLS
+import os
+from stockstats import wrap
+from .config import get_config
+from .utils import (
+    build_date_window,
+    classify_trend,
+    day_change,
+    filter_window,
+    format_trend_block,
+    VN30_INDUSTRIES,
+    VN30_SYMBOLS
+)
 
 def _normalize_vn_ticker(symbol: str) -> str:
     """Normalize ticker to Yahoo Finance VN format."""
@@ -17,18 +27,77 @@ def _display_ticker(symbol: str) -> str:
     ticker = symbol.strip().upper()
     return ticker[:-3] if ticker.endswith(".VN") else ticker
 
+class StockstatsUtils:
+    @staticmethod
+    def get_stock_stats(
+        symbol: Annotated[str, "ticker symbol for the company"],
+        indicator: Annotated[
+            str, "quantitative indicators based off of the stock data for the company"
+        ],
+        curr_date: Annotated[
+            str, "curr date for retrieving stock price data, YYYY-mm-dd"
+        ],
+    ):
+        # Get config and set up data directory path
+        config = get_config()
+
+        # Get today's date as YYYY-mm-dd to add to cache
+        today_date = pd.Timestamp.today()
+        curr_date_dt = pd.to_datetime(curr_date)
+
+        end_date = today_date
+        start_date = today_date - pd.DateOffset(years=15)
+        start_date = start_date.strftime("%Y-%m-%d")
+        end_date = end_date.strftime("%Y-%m-%d")
+
+        # Get config and ensure cache directory exists
+        os.makedirs(config["data_cache_dir"], exist_ok=True)
+
+        data_file = os.path.join(
+            config["data_cache_dir"],
+            f"{symbol[:-3] if '.VN' in symbol else symbol}-data-{start_date}-{end_date}.csv",
+        )
+
+        if os.path.exists(data_file):
+            data = pd.read_csv(data_file)
+            data["Date"] = pd.to_datetime(data["Date"])
+        else:
+            downloaded = yf.download(
+                symbol,
+                start=start_date,
+                end=end_date,
+                multi_level_index=False,
+                progress=False,
+                auto_adjust=True,
+            )
+            if downloaded is None:
+                raise Exception(f"Không có dữ liệu Yahoo Finance trả về cho mã {symbol}")
+            data = downloaded
+            data = data.reset_index()
+            data.to_csv(data_file, index=False)
+
+        df = wrap(data)
+        df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
+        lookup_date = curr_date_dt.strftime("%Y-%m-%d")
+
+        df[indicator]  # trigger stockstats to calculate the indicator
+        matching_rows = df[df["Date"].str.startswith(lookup_date)]
+
+        if not matching_rows.empty:
+            indicator_value = matching_rows[indicator].values[0]
+            return indicator_value
+        else:
+            return "N/A: Không phải ngày giao dịch (cuối tuần hoặc ngày lễ)"
+
 def get_YFin_data_online(
     symbol: Annotated[str, "ticker symbol of the company"],
     curr_date: Annotated[str, "Current date in yyyy-mm-dd format"],
     look_back_days: Annotated[int, "Number of days to look back"],
 ):
-    if look_back_days < 0:
+    try:
+        _, _, start_date, end_date = build_date_window(curr_date, look_back_days)
+    except ValueError:
         return "look_back_days phải >= 0"
-
-    end_dt = datetime.strptime(curr_date, "%Y-%m-%d")
-    start_dt = end_dt - relativedelta(days=look_back_days)
-    start_date = start_dt.strftime("%Y-%m-%d")
-    end_date = end_dt.strftime("%Y-%m-%d")
 
     # Create ticker object
     ticker = yf.Ticker(_normalize_vn_ticker(symbol))
@@ -268,80 +337,6 @@ def _fetch_ohlcv_bulk(symbols: list[str], start: str, end: str) -> dict[str, pd.
     return result
  
  
-def _classify_trend(df: pd.DataFrame) -> str:
-    """
-    Phân loại xu hướng bằng slope hồi quy tuyến tính trên giá đóng cửa.
-    Ngưỡng: 0.1% giá trung bình / phiên.
-    Trả về: 'tăng' | 'giảm' | 'đi ngang' | 'không đủ dữ liệu'
-    """
-    if df.empty or len(df) < 2:
-        return "không đủ dữ liệu"
- 
-    closes = df["close"].values.astype(float)
-    n = len(closes)
-    x = list(range(n))
-    mean_x = (n - 1) / 2
-    mean_y = sum(closes) / n
- 
-    num = sum((xi - mean_x) * (yi - mean_y) for xi, yi in zip(x, closes))
-    den = sum((xi - mean_x) ** 2 for xi in x)
- 
-    if den == 0:
-        return "đi ngang"
- 
-    slope = num / den
-    threshold = mean_y * 0.001          # 0.1% / phiên
- 
-    if slope > threshold:
-        return "tăng"
-    elif slope < -threshold:
-        return "giảm"
-    else:
-        return "đi ngang"
- 
- 
-def _day_change(df: pd.DataFrame, ref_ts: pd.Timestamp) -> dict:
-    """Thông tin biến động giá ngày tham chiếu."""
-    row = df[df["date"] == ref_ts]
-    if row.empty:
-        return {
-            "date": ref_ts.date(),
-            "status": "N/A (không phải ngày giao dịch)",
-            "open": None, "close": None, "change_pct": None,
-        }
-    r = row.iloc[0]
-    change_pct = (r["close"] - r["open"]) / r["open"] * 100 if r["open"] else None
-    direction = (
-        "tăng" if (change_pct or 0) > 0
-        else ("giảm" if (change_pct or 0) < 0 else "đi ngang")
-    )
-    return {
-        "date": ref_ts.date(),
-        "open": round(float(r["open"]), 2),
-        "close": round(float(r["close"]), 2),
-        "change_pct": round(change_pct, 2) if change_pct is not None else None,
-        "status": direction,
-    }
- 
-def _filter_window(df: pd.DataFrame, ref_dt: datetime, days: int) -> pd.DataFrame:
-    """Lọc DataFrame chỉ lấy dữ liệu trong khoảng [ref_dt - days, ref_dt]."""
-    start_ts = pd.Timestamp(ref_dt - timedelta(days=days)).normalize()
-    end_ts   = pd.Timestamp(ref_dt).normalize()
-    return df[(df["date"] >= start_ts) & (df["date"] <= end_ts)].reset_index(drop=True)
-
-
-def _format_trend_block(df_window: pd.DataFrame, label: str) -> str:
-    """Trả về chuỗi mô tả xu hướng cho một cửa sổ thời gian."""
-    if df_window.empty:
-        return f"  {label}: không đủ dữ liệu"
-    trend = _classify_trend(df_window)
-    return (
-        f"  {label}: **{trend}** "
-        f"(đóng cửa đầu kỳ: {df_window.iloc[0]['close']:,.2f} | "
-        f"cuối kỳ: {df_window.iloc[-1]['close']:,.2f})"
-    )
-
-
 def get_market_context(
     ticker: Annotated[str, "ticker symbol đang phân tích"],
     curr_date: Annotated[str, "ngày tham chiếu YYYY-mm-dd"],
@@ -377,7 +372,7 @@ def get_market_context(
     if ticker_df.empty:
         lines.append(f"  Không lấy được dữ liệu {ticker} từ yfinance.")
     else:
-        day_info = _day_change(ticker_df, ref_ts)
+        day_info = day_change(ticker_df, ref_ts)
         if day_info["change_pct"] is not None:
             lines.append(
                 f"  Ngày {day_info['date']}: mở cửa {day_info['open']:,.2f} | "
@@ -387,10 +382,10 @@ def get_market_context(
         else:
             lines.append(f"  Ngày {day_info['date']}: {day_info['status']}")
 
-        ticker_7d  = _filter_window(ticker_df, ref_dt, SHORT_WINDOW)
-        lines.append(_format_trend_block(ticker_7d,  "Xu hướng  7 ngày"))
-        ticker_30d = _filter_window(ticker_df, ref_dt, LONG_WINDOW)
-        lines.append(_format_trend_block(ticker_30d, "Xu hướng 30 ngày"))
+        ticker_7d  = filter_window(ticker_df, ref_dt, SHORT_WINDOW)
+        lines.append(format_trend_block(ticker_7d,  "Xu hướng  7 ngày"))
+        ticker_30d = filter_window(ticker_df, ref_dt, LONG_WINDOW)
+        lines.append(format_trend_block(ticker_30d, "Xu hướng 30 ngày"))
 
     lines.append("")
 
@@ -412,8 +407,8 @@ def get_market_context(
 
         df_sym = vn30_data[sym]
         for window, breadth in ((SHORT_WINDOW, breadth_7d), (LONG_WINDOW, breadth_30d)):
-            df_w = _filter_window(df_sym, ref_dt, window)
-            t = _classify_trend(df_w)
+            df_w = filter_window(df_sym, ref_dt, window)
+            t = classify_trend(df_w)
             if t in breadth:
                 breadth[t].append(sym)
             else:
@@ -437,12 +432,70 @@ def get_market_context(
 
     lines.append("")
 
+    industry_name = None
+    industry_symbols: list[str] = []
+    for name, symbols in VN30_INDUSTRIES.items():
+        if ticker in symbols:
+            industry_name = name
+            industry_symbols = symbols
+            break
+
+    industry_eval = None
+    if industry_name and len(industry_symbols) >= 2:
+        # ------------------------------------------------------------------
+        # Đánh giá cùng nhóm ngành VN30
+        # ------------------------------------------------------------------
+        lines.append("## 3. Đánh giá cùng nhóm ngành (VN30)")
+
+        peers = [s for s in industry_symbols if s != ticker]
+
+        def _industry_breadth(window_days: int) -> dict:
+            b = {"tăng": [], "giảm": [], "đi ngang": [], "lỗi": []}
+            for sym in peers:
+                if sym not in vn30_data:
+                    b["lỗi"].append(sym)
+                    continue
+                df_w = filter_window(vn30_data[sym], ref_dt, window_days)
+                t = classify_trend(df_w)
+                if t in b:
+                    b[t].append(sym)
+                else:
+                    b["lỗi"].append(sym)
+            return b
+
+        industry_7d = _industry_breadth(SHORT_WINDOW)
+        industry_30d = _industry_breadth(LONG_WINDOW)
+        industry_eval = {
+            "name": industry_name,
+            "peer_count": len(peers),
+            "7d": industry_7d,
+            "30d": industry_30d,
+        }
+
+        lines.append(
+            f"  Ngành: {industry_name}"
+        )
+        for label, b in (("7 ngày", industry_7d), ("30 ngày", industry_30d)):
+            lines.append(
+                f"  {label}: {len(b['tăng'])} tăng / {len(b['giảm'])} giảm / {len(b['đi ngang'])} đi ngang"
+            )
+            if b["tăng"]:
+                lines.append(f"    Mã tăng: {', '.join(b['tăng'])}")
+            if b["giảm"]:
+                lines.append(f"    Mã giảm: {', '.join(b['giảm'])}")
+            if b["đi ngang"]:
+                lines.append(f"    Mã đi ngang: {', '.join(b['đi ngang'])}")
+            if b["lỗi"]:
+                lines.append(f"    Không lấy được dữ liệu: {', '.join(b['lỗi'])}")
+
+        lines.append("")
+
     # ------------------------------------------------------------------
     # Tóm tắt
     # ------------------------------------------------------------------
     lines.append("## Tóm tắt")
-    tick_trend_7d  = _classify_trend(_filter_window(ticker_df, ref_dt, SHORT_WINDOW)) if not ticker_df.empty else "N/A"
-    tick_trend_30d = _classify_trend(_filter_window(ticker_df, ref_dt, LONG_WINDOW))  if not ticker_df.empty else "N/A"
+    tick_trend_7d  = classify_trend(filter_window(ticker_df, ref_dt, SHORT_WINDOW)) if not ticker_df.empty else "N/A"
+    tick_trend_30d = classify_trend(filter_window(ticker_df, ref_dt, LONG_WINDOW))  if not ticker_df.empty else "N/A"
     lines.append(
         f"  {ticker} – 7N: {tick_trend_7d} | 30N: {tick_trend_30d}"
     )
@@ -452,6 +505,15 @@ def get_market_context(
     lines.append(
         f"  Breadth VN30 30N: {len(breadth_30d['tăng'])} tăng / {len(breadth_30d['giảm'])} giảm / {len(breadth_30d['đi ngang'])} đi ngang"
     )
+    if industry_eval:
+        lines.append(
+            f"  Nhóm {industry_eval['name']} (không gồm {ticker}) 7N: "
+            f"{len(industry_eval['7d']['tăng'])} tăng / {len(industry_eval['7d']['giảm'])} giảm / {len(industry_eval['7d']['đi ngang'])} đi ngang"
+        )
+        lines.append(
+            f"  Nhóm {industry_eval['name']} (không gồm {ticker}) 30N: "
+            f"{len(industry_eval['30d']['tăng'])} tăng / {len(industry_eval['30d']['giảm'])} giảm / {len(industry_eval['30d']['đi ngang'])} đi ngang"
+        )
 
     return "\n".join(lines)
 
