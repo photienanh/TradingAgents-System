@@ -45,12 +45,6 @@ function safeStringify(value) {
     catch { return String(value); }
 }
 
-function stripStatusEmoji(text) {
-    const raw = String(text || '');
-    // Remove leading emoji/symbol cluster so status reads clean text.
-    return raw.replace(/^[\p{Extended_Pictographic}\p{Emoji_Presentation}\u2600-\u27BF\uFE0F\u200D\s]+/u, '').trim();
-}
-
 function getStatusBadgeMeta(status) {
     const s = String(status || '').toLowerCase();
     const map = {
@@ -502,7 +496,7 @@ async function updateProgressUI(data) {
         error:     'Phân tích thất bại',
     }[data.status] || 'Đang xử lý...';
 
-    const step    = stripStatusEmoji(data.current_step || fallback);
+    const step    = String(data.current_step || fallback).trim();
     const percent = Number.isFinite(data.progress_percent)
         ? Math.max(0, Math.min(100, data.progress_percent))
         : (data.status === 'completed' ? 100 : 0);
