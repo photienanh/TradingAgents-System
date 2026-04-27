@@ -115,8 +115,14 @@ class TradingAgentsGraph:
             max_risk_discuss_rounds=int(self.config.get("max_risk_discuss_rounds", 1) or 1),
         )
 
-        alpha_formula_dir = self.config.get("alpha_formula_dir", "")
-        alpha_values_dir  = self.config.get("alpha_values_dir",  "")
+        alpha_formula_dir = self.config.get(
+            "alpha_library_path",
+            self.config.get("alpha_formula_dir", ""),
+        )
+        alpha_values_dir = self.config.get(
+            "market_data_dir",
+            self.config.get("alpha_values_dir", ""),
+        )
 
         self.graph_setup = GraphSetup(
             self.quick_thinking_llm,

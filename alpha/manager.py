@@ -1,222 +1,161 @@
 """
 alpha/manager.py
 
-Singleton quản lý vòng đời alpha pipeline trong FastAPI app.
-main.py chỉ cần gọi 3 hàm:
-  init_alpha_manager()       — gọi trong startup event
-  trigger_if_needed()        — gọi trước mỗi analysis request
-  get_signal_for_ticker(t)   — lấy signal cho TradingAgents
-
-Thiết kế:
-- Không duplicate logic của daily_runner.py
-- Chạy daily_runner.main() trong background thread khi cần
-- PipelineState đảm bảo chỉ chạy 1 lần/ngày kể cả qua server restart
+Runtime manager used by FastAPI app and TradingAgents integration.
 """
+
 from __future__ import annotations
 
+import json
 import logging
 import threading
-from datetime import datetime
+from datetime import date, datetime
+from pathlib import Path
 from typing import Any, Dict, Optional
 
-from alpha.core.paths import SIGNALS_DIR, BASE_DIR
-from alpha.core.signal_store import SignalStore
-from alpha.pipelines.pipeline_state import PipelineState
+from alpha.daily_runner import (
+    MARKET_DATA_DIR,
+    SIGNALS_DIR,
+    compute_ticker_signal,
+    get_top_alphas_by_ic_oos,
+    run_daily_update,
+)
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Singleton state
-# ---------------------------------------------------------------------------
-_signal_store: Optional[SignalStore] = None
-_pipeline_state: Optional[PipelineState] = None
-_running = False
-_lock = threading.Lock()
-
-# Giờ mở cửa thị trường — chỉ trigger pipeline sau thời điểm này
-_MARKET_OPEN_HOUR = 9
-
-
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-
-def init_alpha_manager() -> None:
-    """Gọi một lần trong FastAPI startup event."""
-    global _signal_store, _pipeline_state
-
-    import os
-    state_dir = os.path.join(str(BASE_DIR), "alpha", "pipelines")
-    state_db = os.path.join(str(BASE_DIR), "app", "data", "sessions.db")
-
-    _signal_store   = SignalStore(str(SIGNALS_DIR))
-    _pipeline_state = PipelineState(state_dir=state_dir, db_path=state_db)
-
-    triggered = trigger_if_needed()
-    if triggered:
-        logger.info("[AlphaManager] Daily pipeline triggered khi startup.")
-    else:
-        logger.info(
-            "[AlphaManager] Pipeline không trigger. Lý do: %s",
-            _reason_not_triggered(),
-        )
+_STATE_LOCK = threading.Lock()
+_STATUS: Dict[str, Any] = {
+    "running": False,
+    "last_run_day": None,
+    "last_run_at": None,
+    "last_error": None,
+}
+_SIGNALS_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
-def trigger_if_needed() -> bool:
-    """
-    Trigger daily pipeline nếu:
-    - Đã qua 9h sáng
-    - Chưa chạy hôm nay (check cả qua restart)
-    - Không đang chạy
+def _latest_signal_file() -> Optional[Path]:
+    if not SIGNALS_DIR.exists():
+        return None
+    files = sorted(SIGNALS_DIR.glob("alpha_signals_*.json"), reverse=True)
+    return files[0] if files else None
 
-    Thread-safe, idempotent.
-    Trả về True nếu pipeline được kích hoạt.
-    """
-    global _running
 
-    if not _should_run():
-        return False
+def _load_latest_cache() -> None:
+    global _SIGNALS_CACHE
+    path = _latest_signal_file()
+    if not path:
+        return
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            _SIGNALS_CACHE = {str(k).upper(): v for k, v in data.items()}
+    except Exception as exc:
+        log.warning("[AlphaManager] Failed loading cache %s: %s", path, exc)
 
-    with _lock:
-        if not _should_run():
-            return False
-        _running = True
 
-    thread = threading.Thread(
-        target=_run_pipeline_safe,
-        name="alpha-daily-pipeline",
-        daemon=True,
-    )
+def _run_daily_task() -> None:
+    with _STATE_LOCK:
+        if _STATUS["running"]:
+            return
+        _STATUS["running"] = True
+        _STATUS["last_error"] = None
+
+    try:
+        result = run_daily_update()
+        _load_latest_cache()
+        with _STATE_LOCK:
+            _STATUS["last_run_day"] = date.today().isoformat()
+            _STATUS["last_run_at"] = datetime.now().isoformat()
+            _STATUS["last_result"] = result
+    except Exception as exc:
+        log.exception("[AlphaManager] Daily update failed")
+        with _STATE_LOCK:
+            _STATUS["last_error"] = str(exc)
+    finally:
+        with _STATE_LOCK:
+            _STATUS["running"] = False
+
+
+def trigger_daily_update_async(force: bool = False) -> Dict[str, Any]:
+    """Start daily runner in background; skip if already up-to-date unless force=True."""
+    with _STATE_LOCK:
+        running = _STATUS["running"]
+        last_day = _STATUS.get("last_run_day")
+
+    if running:
+        return {"accepted": False, "message": "Alpha daily update already running"}
+
+    today = date.today().isoformat()
+    if not force and last_day == today:
+        return {"accepted": False, "message": "Alpha daily update already completed today"}
+
+    thread = threading.Thread(target=_run_daily_task, daemon=True, name="alpha-daily-runner")
     thread.start()
-    logger.info("[AlphaManager] Background pipeline thread started.")
-    return True
+    return {"accepted": True, "message": "Alpha daily update started"}
 
 
-def get_signal_for_ticker(ticker: str) -> Dict[str, Any]:
-    """Trả về signal dict cho TradingAgents."""
-    if _signal_store is None:
-        return {
-            "enabled": False,
-            "ticker":  ticker.upper(),
-            "side":    "neutral",
-            "score":   None,
-            "rank":    None,
-            "error":   "Alpha manager chưa được khởi tạo",
-        }
-    return _signal_store.get_signal_for_ticker(ticker)
+def trigger_daily_update_if_needed() -> Dict[str, Any]:
+    return trigger_daily_update_async(force=False)
 
 
-def get_status() -> Dict[str, Any]:
-    """Trả về status cho health check endpoint."""
+def get_alpha_status() -> Dict[str, Any]:
+    with _STATE_LOCK:
+        status = dict(_STATUS)
+    status["n_cached_signals"] = len(_SIGNALS_CACHE)
+    status["market_data_tickers"] = len(list(MARKET_DATA_DIR.glob("*.csv"))) if MARKET_DATA_DIR.exists() else 0
+    return status
+
+
+def _ensure_cache_loaded() -> None:
+    if not _SIGNALS_CACHE:
+        _load_latest_cache()
+
+
+def get_signal_for_ticker(ticker: str, recompute_if_missing: bool = True) -> Dict[str, Any]:
+    t = ticker.upper().strip()
+    _ensure_cache_loaded()
+
+    if t in _SIGNALS_CACHE:
+        payload = dict(_SIGNALS_CACHE[t])
+        payload.setdefault("ticker", t)
+        return payload
+
+    if recompute_if_missing:
+        top_alphas = get_top_alphas_by_ic_oos(limit=5)
+        payload = compute_ticker_signal(t, top_alphas=top_alphas)
+        _SIGNALS_CACHE[t] = payload
+        return payload
+
     return {
-        "initialized":      _signal_store is not None,
-        "is_running":       _running,
-        "should_run":       _should_run(),
-        "signal_fresh":     _signal_store.is_fresh(1) if _signal_store else False,
-        "last_run_date":    str(_pipeline_state.last_run_date) if _pipeline_state else None,
-        "already_ran_today": _pipeline_state.already_ran_today() if _pipeline_state else False,
+        "enabled": False,
+        "ticker": t,
+        "side": "neutral",
+        "signal_today": None,
+        "error": "Ticker signal not found in daily cache",
     }
 
 
-# ---------------------------------------------------------------------------
-# Private
-# ---------------------------------------------------------------------------
+def get_all_signals(limit: Optional[int] = None) -> Dict[str, Dict[str, Any]]:
+    _ensure_cache_loaded()
+    if limit is None or limit <= 0:
+        return dict(_SIGNALS_CACHE)
 
-def _should_run() -> bool:
-    global _running
-    if _running:
-        return False
-    if datetime.now().hour < _MARKET_OPEN_HOUR:
-        return False
-    if _pipeline_state is None:
-        return False
-    if _pipeline_state.already_ran_today():
-        return False
-    return True
+    items = list(_SIGNALS_CACHE.items())[:limit]
+    return {k: v for k, v in items}
 
 
-def _run_pipeline_safe() -> None:
-    """Wrapper chạy daily_runner trong background thread."""
-    global _running
-    try:
-        _run_pipeline()
-    except Exception as exc:
-        logger.error("[AlphaManager] Pipeline thất bại: %s", exc, exc_info=True)
-    finally:
-        _running = False
+def init_alpha_manager() -> Dict[str, Any]:
+    """Compatibility init hook used by FastAPI startup."""
+    _load_latest_cache()
+    return get_alpha_status()
 
 
-def _run_pipeline() -> None:
-    """
-    Gọi trực tiếp các hàm của daily_runner thay vì subprocess.
-    Tương đương chạy: python daily_runner.py --all
-    """
-    from alpha.core.daily_runner import (
-        refresh_latest_market_data,
-        refresh_latest_sentiment_data,
-        refresh_alpha_values_from_existing_formulas,
-        run_daily,
-    )
-    from alpha.core.universe import VN30_SYMBOLS
-    from datetime import date
-
-    tickers = VN30_SYMBOLS
-    logger.info("[AlphaManager] Bắt đầu daily pipeline cho %d tickers", len(tickers))
-
-    # 1. Market data
-    market_stats = refresh_latest_market_data(tickers)
-    target_day_str = market_stats.get("target_day")
-    target_day = None
-    if target_day_str:
-        import pandas as pd
-        target_day = pd.Timestamp(target_day_str).normalize()
-    logger.info(
-        "[AlphaManager] Market refresh: target=%s updated=%d skipped=%d failed=%d",
-        target_day_str,
-        len(market_stats.get("updated", [])),
-        len(market_stats.get("skipped", [])),
-        len(market_stats.get("failed", [])),
-    )
-
-    # 2. Sentiment
-    sent_stats = refresh_latest_sentiment_data(tickers, target_day)
-    logger.info(
-        "[AlphaManager] Sentiment refresh: crawled=%d new_news=%d",
-        sent_stats.get("symbols_crawled", 0),
-        sent_stats.get("news_rows_added", 0),
-    )
-
-    # 3. Alpha values
-    alpha_stats = refresh_alpha_values_from_existing_formulas(tickers)
-    logger.info(
-        "[AlphaManager] Alpha refresh: updated=%d failed=%d",
-        len(alpha_stats.get("updated", [])),
-        len(alpha_stats.get("failed", [])),
-    )
-
-    # 4. Compute signals
-    result = run_daily(tickers)
-    if result.empty:
-        logger.warning("[AlphaManager] Không tạo được signal nào!")
-    else:
-        logger.info(
-            "[AlphaManager] Signals: %d tickers (BUY=%d SELL=%d HOLD=%d)",
-            len(result),
-            (result["action"] == "BUY").sum(),
-            (result["action"] == "SELL").sum(),
-            (result["action"] == "HOLD").sum(),
-        )
-
-    # 5. Lưu state
-    _pipeline_state.last_run_date = date.today()
-    logger.info("[AlphaManager] Daily pipeline hoàn tất: %s", date.today())
+def trigger_if_needed() -> Dict[str, Any]:
+    """Compatibility wrapper used by app.main."""
+    return trigger_daily_update_if_needed()
 
 
-def _reason_not_triggered() -> str:
-    if _running:
-        return "đang chạy"
-    if _pipeline_state and _pipeline_state.already_ran_today():
-        return "đã chạy hôm nay"
-    if datetime.now().hour < _MARKET_OPEN_HOUR:
-        return f"chưa đến {_MARKET_OPEN_HOUR}h sáng"
-    return "không rõ"
+def get_status() -> Dict[str, Any]:
+    """Compatibility wrapper used by app.main health endpoint."""
+    return get_alpha_status()

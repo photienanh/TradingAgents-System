@@ -1,0 +1,156 @@
+"""
+run.py — CLI entry point cho Alpha-GPT pipeline.
+
+Usage:
+    python run.py --idea "Mua vào khi giá giảm liên tục nhiều ngày"
+    python run.py
+    python run.py --data-dir ./my_data
+    python run.py --iterations 5
+"""
+import asyncio
+import argparse
+import logging
+import os
+import datetime
+from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)-8s %(message)s",
+    datefmt="%H:%M:%S",
+)
+log = logging.getLogger(__name__)
+
+for _noisy_lib in [
+    "httpx", "httpcore", "urllib3",
+    "sentence_transformers", "transformers",
+    "huggingface_hub", "filelock",
+    "openai", "langchain", "langchain_core",
+]:
+    logging.getLogger(_noisy_lib).setLevel(logging.WARNING)
+    
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_DATA_DIR = str(PROJECT_ROOT / "data" / "market_data")
+
+
+async def generate_trading_idea() -> str:
+    from langchain_openai import ChatOpenAI
+    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.9)
+    prompt = """Bạn là chuyên gia phân tích định lượng thị trường chứng khoán Việt Nam (HOSE).
+
+Đề xuất MỘT trading idea ngắn gọn (tối đa 10 từ) mô tả một hiện tượng giá/khối lượng quan sát được.
+
+Ràng buộc dữ liệu — chỉ được dùng: open, high, low, close, vwap, volume, adv20, obv, returns, sma_5, sma_20, ema_10, rsi_14, macd, macd_signal, bb_upper/middle/lower, momentum_3/10.
+Không có: khối ngoại, fundamental, earnings, P/E, news, sentiment.
+
+Ví dụ hợp lệ:
+- Bứt phá Bollinger Band kèm khối lượng tăng đột biến
+- RSI phân kỳ với giá trong xu hướng ngắn hạn
+- Đảo chiều sau chuỗi nến doji khối lượng thấp
+
+Chỉ trả về tên idea, không giải thích."""
+    response = await llm.ainvoke([{"role": "user", "content": prompt}])
+    idea = response.content.strip()
+    log.info(f"[Run] Auto-generated idea: {idea}")
+    return idea
+
+
+async def run_pipeline(
+    data_dir: str,
+    idea: str = "",
+    max_iterations: int = 3,
+) -> dict:
+    from alpha.graph import graph
+    from alpha.state import State
+
+    os.environ["ALPHAGPT_DATA_DIR"] = data_dir
+
+    trading_idea = idea or await generate_trading_idea()
+
+    initial_state = State(
+        trading_idea=trading_idea,
+        max_iterations=max_iterations,
+    )
+    thread_id = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    config = {"configurable": {"thread_id": thread_id}}
+
+    log.info(f"[Run] Trading idea: {trading_idea}")
+    log.info(f"[Run] Data dir: {data_dir}")
+    log.info(f"[Run] Max iterations: {max_iterations}")
+
+    final_state = await graph.ainvoke(initial_state, config)
+    _print_summary(trading_idea, final_state)
+    return final_state
+
+
+def _print_summary(idea: str, state: dict) -> None:
+    print(f"\n{'='*60}")
+    print(f"KẾT QUẢ ALPHA-GPT")
+    print(f"{'='*60}")
+    print(f"Trading idea : {idea}")
+    print(f"Iterations   : {state.get('iteration', 0)}/{state.get('max_iterations', 0)}\n")
+
+    history = state.get("hypothesis_history", [])
+    if history:
+        print("--- LỊCH SỬ CÁC VÒNG LẶP ---")
+        for h in history:
+            print(f"\n[Vòng {h.get('iteration', '?')}]")
+            print(f"  Hypothesis: {h.get('hypothesis', 'N/A')}")
+            if h.get("alpha_summary"):
+                print(f"  Alphas    :\n{h['alpha_summary']}")
+            print(f"  Summary   : {h.get('round_summary', 'N/A')}")
+    else:
+        print(f"Hypothesis   : {state.get('hypothesis', 'N/A')}")
+        print(f"Analyst      : {state.get('analyst_summary', 'N/A')}")
+
+    sota = state.get("sota_alphas", [])
+    if sota:
+        print(f"\nTop {len(sota)} SOTA alphas:")
+        for a in sota:
+            ret = a.get("return_oos")
+            ret_str = f"{ret*100:+.1f}%/năm" if ret is not None else "N/A"
+            print(
+                f"  {a.get('id','?')}\n"
+                f"  IC_OOS={a.get('ic_oos','N/A')}  "
+                f"Sharpe={a.get('sharpe_oos','N/A')}  "
+                f"Return={ret_str}\n"
+                f"  Description: {a.get('description','')}\n"
+                f"  Expression : {a.get('expression','')[:80]}\n"
+            )
+    else:
+        print("\nKhông tìm được alpha nào đạt ngưỡng.")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Alpha-GPT — tìm alpha factors trên toàn bộ universe",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Ví dụ:
+  python run.py                                    # tự sinh idea
+  python run.py --idea "Phân kỳ khối lượng và giá"
+  python run.py --iterations 5
+  python run.py --data-dir ./mydata
+        """,
+    )
+    parser.add_argument("--idea", type=str, default="", metavar="TEXT",
+                        help="Trading idea. Nếu bỏ trống, LLM tự sinh.")
+    parser.add_argument("--iterations", type=int, default=3, metavar="N",
+                        help="Số vòng lặp tối đa (mặc định: 3)")
+    parser.add_argument("--data-dir", type=str, default=DEFAULT_DATA_DIR, metavar="DIR",
+                        help="Thư mục chứa CSV files")
+    args = parser.parse_args()
+
+    os.makedirs(args.data_dir, exist_ok=True)
+    asyncio.run(run_pipeline(
+        data_dir=args.data_dir,
+        idea=args.idea,
+        max_iterations=args.iterations,
+    ))
+
+
+if __name__ == "__main__":
+    main()

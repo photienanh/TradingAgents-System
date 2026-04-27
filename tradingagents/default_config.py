@@ -34,10 +34,15 @@ DEFAULT_CONFIG = {
     "max_risk_discuss_rounds": 1,
     "max_recur_limit":         100,
 
-    # TradingAgents đọc từ các file này để tạo quant_report.
-    # Cần chạy AlphaGPT pipeline trước (pipelines/gen_alpha.py) để có data.
-    "alpha_formula_dir": os.path.join(_ALPHAGPT_ROOT, "data", "alpha_formulas"),
-    "alpha_values_dir":  os.path.join(_ALPHAGPT_ROOT, "data", "alphas"),
+    # New AlphaGPT inputs:
+    # - global alpha library at data/alpha_library.json
+    # - per-ticker market data at data/market_data/*.csv
+    "alpha_library_path": os.path.join(_ALPHAGPT_ROOT, "data", "alpha_library.json"),
+    "market_data_dir": os.path.join(_ALPHAGPT_ROOT, "data", "market_data"),
+
+    # Backward-compatible keys still consumed by some graph wiring.
+    "alpha_formula_dir": os.path.join(_ALPHAGPT_ROOT, "data", "alpha_library.json"),
+    "alpha_values_dir": os.path.join(_ALPHAGPT_ROOT, "data", "market_data"),
 
     # Data vendors
     "data_vendors": {

@@ -14,3 +14,5 @@ eval_data/
 app/data/
 *.json
 *main_mock.py
+*.db
+*.faiss
