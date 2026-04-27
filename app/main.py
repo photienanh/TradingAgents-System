@@ -18,7 +18,6 @@ from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 
-from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
 
 from app.routes.market import router as market_router
@@ -33,8 +32,13 @@ from app.services.session_serialization import (
 )
 from app.storage.session_store import SQLiteSessionStore
 from app.services.analysis_runner import run_trading_analysis
-from app.services.decision_fusion import fuse_decision_with_alphagpt, extract_decision_label
-from alpha.manager import init_alpha_manager, trigger_if_needed, get_signal_for_ticker, get_status
+from alpha.manager import (
+    init_alpha_manager,
+    trigger_if_needed,
+    trigger_if_needed_blocking,
+    get_signal_for_ticker,
+    get_status,
+)
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -317,6 +321,9 @@ async def on_startup():
     try:
         init_alpha_manager()
         logger.info("Alpha manager đã được khởi tạo.")
+        logger.info("Alpha daily startup run: waiting for completion...")
+        daily_res = await asyncio.to_thread(trigger_if_needed_blocking)
+        logger.info("Alpha daily startup result: %s", daily_res)
     except Exception as exc:
         logger.error("Không thể khởi tạo alpha manager: %s", exc, exc_info=True)
 

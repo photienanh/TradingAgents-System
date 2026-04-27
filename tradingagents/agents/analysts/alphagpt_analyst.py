@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
-from alpha.daily_runner import compute_ticker_signal, get_top_alphas_by_ic_oos
+from alpha.daily_runner import compute_ticker_signal, load_alpha_definitions
 
 log = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ def _fmt(v: Optional[float], ndigits: int = 4) -> str:
 
 
 def _build_raw_data(ticker: str, trade_date: str) -> Dict[str, Any]:
-    top_alphas = get_top_alphas_by_ic_oos(limit=5)
+    top_alphas = load_alpha_definitions(limit=5)
     signal = compute_ticker_signal(ticker=ticker, top_alphas=top_alphas)
 
     side = str(signal.get("side", "neutral")).upper()

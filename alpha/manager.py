@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 from datetime import date, datetime
 from pathlib import Path
@@ -15,10 +16,9 @@ from typing import Any, Dict, Optional
 
 from alpha.daily_runner import (
     MARKET_DATA_DIR,
-    SIGNALS_DIR,
-    compute_ticker_signal,
-    get_top_alphas_by_ic_oos,
+    SIGNALS_PATH,
     run_daily_update,
+    _safe_float,
 )
 
 log = logging.getLogger(__name__)
@@ -31,27 +31,34 @@ _STATUS: Dict[str, Any] = {
     "last_error": None,
 }
 _SIGNALS_CACHE: Dict[str, Dict[str, Any]] = {}
+DAILY_START_HOUR = int(os.getenv("ALPHAGPT_DAILY_START_HOUR", "9"))
 
 
-def _latest_signal_file() -> Optional[Path]:
-    if not SIGNALS_DIR.exists():
-        return None
-    files = sorted(SIGNALS_DIR.glob("alpha_signals_*.json"), reverse=True)
-    return files[0] if files else None
+def _is_after_daily_start(now: datetime) -> bool:
+    return now.hour >= DAILY_START_HOUR
 
 
 def _load_latest_cache() -> None:
     global _SIGNALS_CACHE
-    path = _latest_signal_file()
-    if not path:
+    if not SIGNALS_PATH.exists():
         return
     try:
-        with path.open("r", encoding="utf-8") as f:
-            data = json.load(f)
-        if isinstance(data, dict):
-            _SIGNALS_CACHE = {str(k).upper(): v for k, v in data.items()}
+        import pandas as pd
+        df = pd.read_csv(SIGNALS_PATH)
+        for _, row in df.iterrows():
+            t = str(row["ticker"]).upper()
+            _SIGNALS_CACHE[t] = {
+                "enabled":      bool(row.get("enabled", False)),
+                "ticker":       t,
+                "side":         str(row.get("side", "neutral")),
+                "signal_today": _safe_float(row.get("signal_today")),
+                "ic_oos":       _safe_float(row.get("ic_oos")),
+                "sharpe_oos":   _safe_float(row.get("sharpe_oos")),
+                "return_oos":   _safe_float(row.get("return_oos")),
+                "as_of":        str(row.get("as_of", "")),
+            }
     except Exception as exc:
-        log.warning("[AlphaManager] Failed loading cache %s: %s", path, exc)
+        log.warning("[AlphaManager] Failed loading cache %s: %s", SIGNALS_PATH, exc)
 
 
 def _run_daily_task() -> None:
@@ -76,30 +83,53 @@ def _run_daily_task() -> None:
         with _STATE_LOCK:
             _STATUS["running"] = False
 
-
-def trigger_daily_update_async(force: bool = False) -> Dict[str, Any]:
-    """Start daily runner in background; skip if already up-to-date unless force=True."""
+def _check_should_skip() -> Optional[Dict[str, Any]]:
+    """Trả về dict nếu nên skip, None nếu được phép chạy."""
     with _STATE_LOCK:
-        running = _STATUS["running"]
+        running  = _STATUS["running"]
         last_day = _STATUS.get("last_run_day")
 
     if running:
         return {"accepted": False, "message": "Alpha daily update already running"}
 
-    today = date.today().isoformat()
-    if not force and last_day == today:
+    now = datetime.now()
+    if not _is_after_daily_start(now):
+        return {
+            "accepted": False,
+            "message": f"Alpha daily update is scheduled after {DAILY_START_HOUR:02d}:00",
+            "scheduled_after": f"{DAILY_START_HOUR:02d}:00",
+        }
+
+    if last_day == date.today().isoformat():
         return {"accepted": False, "message": "Alpha daily update already completed today"}
 
+    return None
+
+def trigger_if_needed(force: bool = False) -> Dict[str, Any]:
+    if not force:
+        skip = _check_should_skip()
+        if skip:
+            return skip
     thread = threading.Thread(target=_run_daily_task, daemon=True, name="alpha-daily-runner")
     thread.start()
     return {"accepted": True, "message": "Alpha daily update started"}
 
 
-def trigger_daily_update_if_needed() -> Dict[str, Any]:
-    return trigger_daily_update_async(force=False)
+def trigger_if_needed_blocking(force: bool = False) -> Dict[str, Any]:
+    if not force:
+        skip = _check_should_skip()
+        if skip:
+            return skip
+    _run_daily_task()
+    with _STATE_LOCK:
+        err    = _STATUS.get("last_error")
+        result = _STATUS.get("last_result")
+    if err:
+        return {"accepted": False, "message": "Alpha daily update failed", "error": err}
+    return {"accepted": True, "message": "Alpha daily update finished", "result": result}
 
 
-def get_alpha_status() -> Dict[str, Any]:
+def get_status() -> Dict[str, Any]:
     with _STATE_LOCK:
         status = dict(_STATUS)
     status["n_cached_signals"] = len(_SIGNALS_CACHE)
@@ -112,7 +142,7 @@ def _ensure_cache_loaded() -> None:
         _load_latest_cache()
 
 
-def get_signal_for_ticker(ticker: str, recompute_if_missing: bool = True) -> Dict[str, Any]:
+def get_signal_for_ticker(ticker: str) -> Dict[str, Any]:
     t = ticker.upper().strip()
     _ensure_cache_loaded()
 
@@ -120,13 +150,7 @@ def get_signal_for_ticker(ticker: str, recompute_if_missing: bool = True) -> Dic
         payload = dict(_SIGNALS_CACHE[t])
         payload.setdefault("ticker", t)
         return payload
-
-    if recompute_if_missing:
-        top_alphas = get_top_alphas_by_ic_oos(limit=5)
-        payload = compute_ticker_signal(t, top_alphas=top_alphas)
-        _SIGNALS_CACHE[t] = payload
-        return payload
-
+    
     return {
         "enabled": False,
         "ticker": t,
@@ -148,14 +172,4 @@ def get_all_signals(limit: Optional[int] = None) -> Dict[str, Dict[str, Any]]:
 def init_alpha_manager() -> Dict[str, Any]:
     """Compatibility init hook used by FastAPI startup."""
     _load_latest_cache()
-    return get_alpha_status()
-
-
-def trigger_if_needed() -> Dict[str, Any]:
-    """Compatibility wrapper used by app.main."""
-    return trigger_daily_update_if_needed()
-
-
-def get_status() -> Dict[str, Any]:
-    """Compatibility wrapper used by app.main health endpoint."""
-    return get_alpha_status()
+    return get_status()

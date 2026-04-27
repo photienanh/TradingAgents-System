@@ -36,6 +36,10 @@
             <span class="nav-icon"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i></span>
             <span class="nav-label">Sessions</span>
         </a>
+        <a href="#" class="nav-item" data-section="alpha">
+            <span class="nav-icon"><i class="fa-solid fa-flask-vial" aria-hidden="true"></i></span>
+            <span class="nav-label">Alpha</span>
+        </a>
     </nav>
 </aside>
 
@@ -295,6 +299,93 @@
                 </div>
             </div>
         </section>
+
+        <!-- ══════════════════════ SECTION: ALPHA ══════════════════════ -->
+        <div class="section" id="alpha-section">
+            <div class="section-header">
+                <h2><i class="fa-solid fa-flask-vial" style="color:var(--primary);margin-right:.5rem;"></i>Alpha Library</h2>
+                <p>Quản lý và sinh alpha — dùng bởi AlphaGPT Analyst</p>
+            </div>
+ 
+            <!-- Tabs -->
+            <div class="alpha-tabs">
+                <button class="alpha-tab-btn active" data-tab="library" onclick="window._switchAlphaTab('library')">
+                    <i class="fa-solid fa-database"></i> Library
+                </button>
+                <button class="alpha-tab-btn" data-tab="pipeline" onclick="window._switchAlphaTab('pipeline')">
+                    <i class="fa-solid fa-gear"></i> Sinh Alpha
+                </button>
+            </div>
+ 
+            <!-- Tab: Library -->
+            <div class="alpha-tab-pane active" id="alpha-tab-library">
+                <div class="alpha-library-header">
+                    <span id="alpha-library-stats" class="alpha-stats-badge">—</span>
+                    <button class="btn-sm btn-ghost" onclick="window._loadAlphaLibrary(true)">
+                        <i class="fa-solid fa-rotate-right"></i> Refresh
+                    </button>
+                </div>
+                <div class="alpha-table-wrap">
+                    <table class="alpha-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>ID</th>
+                                <th>Mô tả</th>
+                                <th title="Information Coefficient (out-of-sample)">IC_OOS ↓</th>
+                                <th title="Sharpe (out-of-sample)">Sharpe</th>
+                                <th title="Annualized return (out-of-sample)">Return/năm</th>
+                            </tr>
+                        </thead>
+                        <tbody id="alpha-library-body">
+                            <tr><td colspan="6" class="alpha-loading">Click Refresh để tải...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+ 
+            <!-- Tab: Pipeline -->
+            <div class="alpha-tab-pane" id="alpha-tab-pipeline">
+                <div class="pipeline-card">
+                    <div class="pipeline-form">
+                        <div class="form-group">
+                            <label for="alpha-idea-input">Trading Idea</label>
+                            <input
+                                type="text"
+                                id="alpha-idea-input"
+                                placeholder="Để trống → tự sinh idea (vd: RSI phân kỳ với giá ngắn hạn)"
+                                autocomplete="off"
+                            />
+                            <span class="form-hint">Mô tả hiện tượng giá/khối lượng bằng tiếng Việt</span>
+                        </div>
+                        <div class="form-group form-group-sm">
+                            <label for="alpha-iterations-input">Số vòng lặp</label>
+                            <input type="number" id="alpha-iterations-input" value="3" min="1" max="10" style="width:80px;" />
+                        </div>
+                        <div class="pipeline-actions">
+                            <button id="alpha-run-btn" class="btn-primary" onclick="window._runAlphaPipeline()">
+                                <i class="fa-solid fa-play"></i> Chạy Pipeline
+                            </button>
+                            <button id="alpha-stop-btn" class="btn-danger" style="display:none;" onclick="window._stopAlphaPipeline()">
+                                <i class="fa-solid fa-stop"></i> Dừng
+                            </button>
+                            <span id="alpha-pipeline-status" class="pipeline-status-badge idle">idle</span>
+                        </div>
+                    </div>
+ 
+                    <div class="pipeline-log-wrap">
+                        <div class="log-toolbar">
+                            <span class="log-title"><i class="fa-solid fa-terminal"></i> Pipeline Log</span>
+                            <button class="btn-ghost btn-xs" onclick="document.getElementById('alpha-pipeline-log').textContent=''">
+                                <i class="fa-solid fa-trash-can"></i> Clear
+                            </button>
+                        </div>
+                        <div id="alpha-pipeline-log" class="pipeline-log"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- ══════════════════════ / SECTION: ALPHA ══════════════════════ -->
 
     </main>
 </div>

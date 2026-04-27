@@ -70,7 +70,7 @@ def build_kb():
 
     # Lưu index
     index_path = INDEX_DIR / "alpha_index.faiss"
-    faiss.write_index(index, index_path)
+    faiss.write_index(index, os.fspath(index_path))
     log.info(f"FAISS index saved: {index_path}")
 
     # Lưu metadata

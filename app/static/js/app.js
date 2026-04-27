@@ -9,10 +9,15 @@
  */
 import { startAnalysis, startNewAnalysis, cancelCurrentAnalysis, clearStatusPolling } from './analysis.js';
 import { loadSessions, viewSession, deleteSession, closeSessionReviewModal } from './sessions.js';
+import { loadAlphaLibrary, runAlphaPipeline, stopAlphaPipeline, switchAlphaTab } from './alpha_panel.js';
 
 // ── Expose to inline onclick handlers (HTML uses window.* calls) ──────────
 window._viewSession   = viewSession;
 window._deleteSession = deleteSession;
+window._loadAlphaLibrary  = (force) => loadAlphaLibrary(force);
+window._runAlphaPipeline  = runAlphaPipeline;
+window._stopAlphaPipeline = stopAlphaPipeline;
+window._switchAlphaTab    = switchAlphaTab;
 
 // ── Tab setup ─────────────────────────────────────────────────────────────
 function setupTabs(containerEl) {
@@ -38,9 +43,17 @@ window.switchSection = function switchSection(name) {
     if (sec) sec.classList.add('active');
     const nav = document.querySelector('[data-section="' + name + '"]');
     if (nav) nav.classList.add('active');
-    const titles = { home: 'Home', 'new-analysis': 'New Analysis', sessions: 'Sessions' };
+    const titles = {
+        home: 'Home',
+        'new-analysis': 'New Analysis',
+        sessions: 'Sessions',
+        alpha: 'Alpha'
+    };
     const el = document.getElementById('page-title');
     if (el) el.textContent = titles[name] || name;
+
+    // Entering Alpha section should always show and refresh the library tab state.
+    if (name === 'alpha') switchAlphaTab('library');
 };
 
 // ── Init ──────────────────────────────────────────────────────────────────

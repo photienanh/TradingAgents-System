@@ -136,7 +136,7 @@ def _build_index(all_alphas: List[Dict]) -> bool:
     index = faiss.IndexFlatIP(dim)
     index.add(embeddings_norm)
 
-    faiss.write_index(index, INDEX_PATH)
+    faiss.write_index(index, os.fspath(INDEX_PATH))
 
     # Lưu metadata song song — giữ đủ info để trả về khi retrieve
     meta = []
@@ -179,7 +179,7 @@ def _load_index():
 
     try:
         import faiss
-        _index_cache = faiss.read_index(INDEX_PATH)
+        _index_cache = faiss.read_index(os.fspath(INDEX_PATH))
         with open(META_PATH, "r", encoding="utf-8") as f:
             _meta_cache = json.load(f)
         log.debug(f"[Retriever] Loaded index: {_index_cache.ntotal} vectors")
