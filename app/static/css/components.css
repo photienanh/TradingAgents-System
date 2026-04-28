@@ -426,6 +426,11 @@ small { font-size: 0.775rem; color: var(--text-muted); }
     border-bottom: var(--glass-border);
     white-space: nowrap;
 }
+.alpha-table thead th:nth-child(4),
+.alpha-table thead th:nth-child(5),
+.alpha-table thead th:nth-child(6) {
+    text-align: center;
+}
 .alpha-table tbody tr.alpha-row {
     border-bottom: 1px solid var(--border);
     transition: background 0.15s;
@@ -440,18 +445,29 @@ small { font-size: 0.775rem; color: var(--text-muted); }
 .alpha-id code { font-size: 0.75rem; color: var(--accent); background: rgba(6,182,212,0.08); padding: 2px 5px; border-radius: 4px; }
 .alpha-desc { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8rem; }
 .alpha-metric { font-variant-numeric: tabular-nums; font-size: 0.8rem; text-align: right; width: 80px; }
+.alpha-table tbody td:nth-child(4),
+.alpha-table tbody td:nth-child(5),
+.alpha-table tbody td:nth-child(6) {
+    text-align: center;
+}
 .metric-pos { color: var(--success); font-weight: 600; }
 .metric-neg { color: var(--danger, #ef4444); font-weight: 600; }
 
 .alpha-expr-row td {
-    padding: 0 0.75rem 0.5rem;
-    background: rgba(0,0,0,0.015);
+    padding: 0.25rem 0.75rem 0.6rem;
+    background: rgba(41, 41, 43, 0.04);
     border-bottom: 1px solid var(--border);
 }
 code.alpha-expr-code {
-    font-size: 0.72rem;
-    color: var(--text-secondary);
+    display: inline-block;
+    font-size: 0.78rem;
+    color: #000000;
+    background: rgba(232,121,249,0.08);
+    border: 1px solid rgba(232,121,249,0.2);
+    border-radius: 6px;
+    padding: 0.25rem 0.5rem;
     word-break: break-all;
+    font-family: 'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
 }
 .alpha-loading { text-align: center; color: var(--text-muted); padding: 2rem !important; }
 .alpha-error   { color: var(--danger, #ef4444) !important; }
@@ -571,3 +587,17 @@ code.alpha-expr-code {
 .log-err    { color: #f85149; }
 .log-header { color: #58a6ff; font-weight: 700; border-top: 1px solid rgba(88,166,255,0.15); margin-top: 0.4rem; padding-top: 0.4rem; }
 .log-indent { color: #c9d1d9; padding-left: 1.2rem; }
+
+.alpha-delete-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 3px 5px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    transition: color 0.15s, background 0.15s;
+    opacity: 0;
+}
+.alpha-row:hover .alpha-delete-btn { opacity: 1; }
+.alpha-delete-btn:hover { color: #ef4444; background: rgba(239,68,68,0.1); }

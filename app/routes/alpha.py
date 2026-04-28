@@ -155,6 +155,20 @@ async def alpha_library_list() -> Dict[str, Any]:
         "total": len(rows),
         "alphas": rows,
     }
+
+@router.delete("/library/{alpha_id}")
+async def alpha_library_delete(alpha_id: str) -> Dict[str, Any]:
+    """Xóa alpha khỏi alpha_library.json theo id."""
+    from alpha.daily_runner import _load_alpha_library, ALPHA_LIBRARY_PATH
+    import json
+    alphas = _load_alpha_library()
+    original_len = len(alphas)
+    alphas = [a for a in alphas if str(a.get("id", "")) != alpha_id]
+    if len(alphas) == original_len:
+        return JSONResponse({"error": f"Alpha '{alpha_id}' not found"}, status_code=404)
+    with open(ALPHA_LIBRARY_PATH, "w", encoding="utf-8") as f:
+        json.dump(alphas, f, ensure_ascii=False, indent=2)
+    return {"deleted": alpha_id, "remaining": len(alphas)}
  
  
 # ── Pipeline run with SSE log streaming ─────────────────────────────────

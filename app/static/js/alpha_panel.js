@@ -39,9 +39,14 @@ export async function loadAlphaLibrary(forceReload = false) {
                 <td class="alpha-metric ${icCls}">${ic}</td>
                 <td class="alpha-metric">${sh}</td>
                 <td class="alpha-metric">${ret}</td>
+                <td class="alpha-metric" style="width:36px;text-align:center;">
+                    <button class="alpha-delete-btn" title="Delete this alpha" onclick="window._deleteAlpha('${escHtml(a.id)}')">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </td>
             </tr>
             <tr class="alpha-expr-row">
-                <td colspan="6"><code class="alpha-expr-code">${escHtml(a.formula)}</code></td>
+                <td colspan="7"><code class="alpha-expr-code">${escHtml(a.formula)}</code></td>
             </tr>`;
         }).join('');
 
@@ -130,6 +135,22 @@ export function switchAlphaTab(tab) {
     if (tab === 'library') loadAlphaLibrary();
 }
 
+export async function deleteAlpha(alphaId) {
+    if (!confirm(`Delete this alpha "${alphaId}" from library?`)) return;
+    try {
+        const res = await fetch(`/api/alpha/library/${encodeURIComponent(alphaId)}`, { method: 'DELETE' });
+        if (!res.ok) {
+            const err = await res.json();
+            alert('Lỗi: ' + (err.error || res.status));
+            return;
+        }
+        _libraryLoaded = false;
+        loadAlphaLibrary(true);
+    } catch (e) {
+        alert('Lỗi kết nối: ' + e.message);
+    }
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────
 
 function _appendLog(el, text) {
@@ -139,7 +160,7 @@ function _appendLog(el, text) {
     // Màu theo loại dòng
     if (text.includes('[OK]'))          line.classList.add('log-ok');
     else if (text.includes('[WEAK]'))   line.classList.add('log-weak');
-    else if (text.includes('[ERROR]') || text.includes('ERROR')) line.classList.add('log-err');
+    else if (text.includes('[ERR]') || text.includes('[ERROR]') || text.includes('ERROR')) line.classList.add('log-err');
     else if (text.includes('==='))      line.classList.add('log-header');
     else if (text.startsWith('  ['))    line.classList.add('log-indent');
 

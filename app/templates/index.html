@@ -54,7 +54,6 @@
             </button>
             <div>
                 <div class="page-title" id="page-title">Home</div>
-                <div class="breadcrumb">TradingAgents / <span id="breadcrumb-section">Home</span></div>
             </div>
         </div>
         <div class="topbar-right">
@@ -304,7 +303,7 @@
         <div class="section" id="alpha-section">
             <div class="section-header">
                 <h2><i class="fa-solid fa-flask-vial" style="color:var(--primary);margin-right:.5rem;"></i>Alpha Library</h2>
-                <p>Quản lý và sinh alpha — dùng bởi AlphaGPT Analyst</p>
+                <p>Alpha management and generation</p>
             </div>
  
             <!-- Tabs -->
@@ -313,7 +312,7 @@
                     <i class="fa-solid fa-database"></i> Library
                 </button>
                 <button class="alpha-tab-btn" data-tab="pipeline" onclick="window._switchAlphaTab('pipeline')">
-                    <i class="fa-solid fa-gear"></i> Sinh Alpha
+                    <i class="fa-solid fa-gear"></i> Alpha Generator
                 </button>
             </div>
  
@@ -331,14 +330,15 @@
                             <tr>
                                 <th>#</th>
                                 <th>ID</th>
-                                <th>Mô tả</th>
-                                <th title="Information Coefficient (out-of-sample)">IC ↓</th>
-                                <th title="Sharpe (out-of-sample)">Sharpe</th>
-                                <th title="Annualized return (out-of-sample)">Return/năm</th>
+                                <th>Description</th>
+                                <th title="Information Coefficient">IC ↓</th>
+                                <th title="Sharpe">Sharpe</th>
+                                <th title="Annualized return">Return</th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody id="alpha-library-body">
-                            <tr><td colspan="6" class="alpha-loading">Click Refresh để tải...</td></tr>
+                            <tr><td colspan="6" class="alpha-loading">Refresh</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -353,21 +353,21 @@
                             <input
                                 type="text"
                                 id="alpha-idea-input"
-                                placeholder="Để trống → tự sinh idea (vd: RSI phân kỳ với giá ngắn hạn)"
+                                placeholder="Leave empty to autogenerate random idea"
                                 autocomplete="off"
                             />
-                            <span class="form-hint">Mô tả hiện tượng giá/khối lượng bằng tiếng Việt</span>
+                            <span class="form-hint">Describe your trading idea in Vietnamese</span>
                         </div>
                         <div class="form-group form-group-sm">
-                            <label for="alpha-iterations-input">Số vòng lặp</label>
+                            <label for="alpha-iterations-input">Iteration</label>
                             <input type="number" id="alpha-iterations-input" value="3" min="1" max="10" style="width:80px;" />
                         </div>
                         <div class="pipeline-actions">
                             <button id="alpha-run-btn" class="btn-primary" onclick="window._runAlphaPipeline()">
-                                <i class="fa-solid fa-play"></i> Chạy Pipeline
+                                <i class="fa-solid fa-play"></i> Start Generation
                             </button>
                             <button id="alpha-stop-btn" class="btn-danger" style="display:none;" onclick="window._stopAlphaPipeline()">
-                                <i class="fa-solid fa-stop"></i> Dừng
+                                <i class="fa-solid fa-stop"></i> Stop
                             </button>
                             <span id="alpha-pipeline-status" class="pipeline-status-badge idle">idle</span>
                         </div>
