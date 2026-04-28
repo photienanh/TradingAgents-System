@@ -41,7 +41,7 @@ def create_trader(llm, memory):
                     "## CÁCH SỬ DỤNG DỮ LIỆU\n"
                     "Bạn có hai nguồn thông tin:\n"
                     "1. **Quant Signal (AlphaGPT)**: Tín hiệu thống kê từ backtest, validate trên OOS data. "
-                    "IC_OOS và Sharpe_OOS là chỉ số định lượng.\n"
+                    "IC và Sharpe là chỉ số định lượng.\n"
                     "2. **Qualitative Analysis**: Fundamental, news, sentiment — cung cấp context mà quant không nắm được.\n\n"
                     "Khi hai nguồn đồng thuận → tự tin hơn.\n"
                     "Khi hai nguồn mâu thuẫn → phân tích nguyên nhân, không tự động theo một bên nào.\n\n"
@@ -60,7 +60,7 @@ def create_trader(llm, memory):
                     f"### Kế Hoạch Giao Dịch — {sanitize_for_prompt(company_name)} — {trade_date}\n\n"
 
                     "#### Tổng Hợp Tín Hiệu\n"
-                    "- **Quant signal**: [hướng, IC_OOS, mức độ tin cậy]\n"
+                    "- **Quant signal**: [hướng, IC, mức độ tin cậy]\n"
                     "- **Research team**: [quyết định và lý do chính]\n"
                     "- **Mức độ đồng thuận**: [đồng thuận / mâu thuẫn, giải thích]\n\n"
 

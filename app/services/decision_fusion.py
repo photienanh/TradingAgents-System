@@ -34,7 +34,7 @@ def fuse_decision_with_alphagpt(
         return decision, f"AlphaGPT neutral (side={side}) → TA decision kept"
 
     if ic_oos < ic_threshold:
-        return decision, f"AlphaGPT weak: ic_oos={ic_oos:.4f} < {ic_threshold} → TA decision kept ({decision})"
+        return decision, f"AlphaGPT weak: IC={ic_oos:.4f} < {ic_threshold} → TA decision kept ({decision})"
 
     if side == "long":
         if score <= long_score_threshold:
@@ -42,16 +42,16 @@ def fuse_decision_with_alphagpt(
         if decision == "HOLD":
             return "BUY", (
                 f"Alpha bias BUY from today signal={score:.3f} "
-                f"(ic_oos={ic_oos:.4f}, sharpe={sharpe_oos:.3f}, return={return_oos:.3f})"
+                f"(IC={ic_oos:.4f}, Sharpe={sharpe_oos:.3f}, Return={return_oos:.3f})"
             )
         if decision == "SELL":
             return "HOLD", (
                 f"Conflict: TA=SELL vs alpha BUY bias today={score:.3f} "
-                f"(ic_oos={ic_oos:.4f}) → HOLD"
+                f"(IC={ic_oos:.4f}) → HOLD"
             )
         return "BUY", (
             f"TA=BUY aligned with alpha BUY bias today={score:.3f} "
-            f"(ic_oos={ic_oos:.4f}, sharpe={sharpe_oos:.3f}, return={return_oos:.3f})"
+            f"(IC={ic_oos:.4f}, Sharpe={sharpe_oos:.3f}, Return={return_oos:.3f})"
         )
 
     # short
@@ -60,14 +60,14 @@ def fuse_decision_with_alphagpt(
     if decision == "HOLD":
         return "SELL", (
             f"Alpha bias SELL from today signal={score:.3f} "
-            f"(ic_oos={ic_oos:.4f}, sharpe={sharpe_oos:.3f}, return={return_oos:.3f})"
+            f"(IC={ic_oos:.4f}, Sharpe={sharpe_oos:.3f}, Return={return_oos:.3f})"
         )
     if decision == "BUY":
         return "HOLD", (
             f"Conflict: TA=BUY vs alpha SELL bias today={score:.3f} "
-            f"(ic_oos={ic_oos:.4f}) → HOLD"
+            f"(IC={ic_oos:.4f}) → HOLD"
         )
     return "SELL", (
         f"TA=SELL aligned with alpha SELL bias today={score:.3f} "
-        f"(ic_oos={ic_oos:.4f}, sharpe={sharpe_oos:.3f}, return={return_oos:.3f})"
+        f"(IC={ic_oos:.4f}, Sharpe={sharpe_oos:.3f}, Return={return_oos:.3f})"
     )

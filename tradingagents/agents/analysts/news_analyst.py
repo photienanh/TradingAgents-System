@@ -28,7 +28,7 @@ Công cụ sử dụng:
 - get_news: cho tin theo công ty/chủ đề
 - get_global_news: cho tin vĩ mô tổng quát
 
-## Cấu trúc báo cáo (BẮT BUỘC tuân theo có thể thêm bảng số liệu nếu có)
+## Cấu trúc báo cáo (BẮT BUỘC tuân theo có thể thêm bảng số liệu nếu có, nên liệt kê các tin tức chính để làm rõ nguồn thông tin)
 
 ### Phân Tích Tin Tức — {ticker} — {current_date}
 

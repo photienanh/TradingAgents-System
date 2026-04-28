@@ -1,6 +1,6 @@
 """
 validators.py
-Kiểm tra và normalize alpha expressions trước khi exec.
+Kiểm tra và normalize alpha formula trước khi exec.
 """
 import re
 from typing import Tuple, Set
@@ -45,34 +45,34 @@ _FORBIDDEN_KEYWORDS = re.compile(
 )
 
 
-def validate_expression(expr: str) -> Tuple[bool, str]:
+def validate_formula(formula: str) -> Tuple[bool, str]:
     """
-    Kiểm tra expression trước khi exec.
+    Kiểm tra formula trước khi exec.
     Returns: (is_valid, error_message)
     """
-    if not expr or not expr.strip():
-        return False, "expression rỗng"
+    if not formula or not formula.strip():
+        return False, "formula rỗng"
 
-    if "alpha" not in expr:
+    if "alpha" not in formula:
         return False, "thiếu assignment 'alpha = ...'"
 
     # Phải có dạng "alpha = ..."
-    if not re.search(r"alpha\s*=", expr):
-        return False, "thiếu 'alpha = ' trong expression"
+    if not re.search(r"alpha\s*=", formula):
+        return False, "thiếu 'alpha = ' trong formula"
 
     # Không cho phép các cấu trúc nguy hiểm
-    m = _FORBIDDEN_KEYWORDS.search(expr)
+    m = _FORBIDDEN_KEYWORDS.search(formula)
     if m:
         return False, f"cấu trúc không được phép: '{m.group()}'"
 
     # Kiểm tra df['field'] — chỉ cho phép VALID_FIELDS
-    field_refs = re.findall(r"df\[[\'\"](\w+)[\'\"]\]", expr)
+    field_refs = re.findall(r"df\[[\'\"](\w+)[\'\"]\]", formula)
     for field in field_refs:
         if field.lower() not in VALID_FIELDS:
             return False, f"field không hợp lệ: df['{field}']"
 
     # Kiểm tra tên hàm được gọi
-    func_calls = re.findall(r"\b([a-z_][a-z0-9_]*)\s*\(", expr)
+    func_calls = re.findall(r"\b([a-z_][a-z0-9_]*)\s*\(", formula)
     for fn in func_calls:
         if fn in ("alpha", "df", "np", "pd", "float", "int", "abs", "min", "max"):
             continue
@@ -82,17 +82,17 @@ def validate_expression(expr: str) -> Tuple[bool, str]:
     return True, ""
 
 
-def normalize_expression(expr: str) -> str:
+def normalize_formula(formula: str) -> str:
     """
-    Normalize expression để deduplication.
+    Normalize formula để deduplication.
     - Strip whitespace thừa
     - Lowercase
     - Sort args của commutative operators (add, cwise_mul)
     """
-    if not expr:
-        return expr
+    if not formula:
+        return formula
 
-    normalized = " ".join(expr.split()).lower()
+    normalized = " ".join(formula.split()).lower()
 
     # Normalize add(a, b) và add(b, a) → cùng dạng (sort args)
     def _sort_commutative(m):

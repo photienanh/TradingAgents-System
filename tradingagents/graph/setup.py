@@ -48,8 +48,6 @@ class GraphSetup:
         invest_judge_memory,
         risk_manager_memory,
         conditional_logic: ConditionalLogic,
-        alpha_formula_dir: str = "",
-        alpha_values_dir: str  = "",
     ):
         self.quick_thinking_llm  = quick_thinking_llm
         self.deep_thinking_llm   = deep_thinking_llm
@@ -60,8 +58,6 @@ class GraphSetup:
         self.invest_judge_memory = invest_judge_memory
         self.risk_manager_memory = risk_manager_memory
         self.conditional_logic   = conditional_logic
-        self.alpha_formula_dir   = alpha_formula_dir
-        self.alpha_values_dir    = alpha_values_dir
 
     def setup_graph(
         self,
@@ -96,12 +92,7 @@ class GraphSetup:
             tool_node_map[key] = self.tool_nodes[key]
 
         # AlphaGPT Analyst node — không cần LLM, không cần tool node
-        alphagpt_node = create_alphagpt_analyst(
-            llm=self.quick_thinking_llm,
-            alpha_formula_dir=self.alpha_formula_dir,
-            alpha_values_dir=self.alpha_values_dir,
-        )
-
+        alphagpt_node          = create_alphagpt_analyst(llm=self.quick_thinking_llm)
         bull_researcher_node   = create_bull_researcher(self.quick_thinking_llm, self.bull_memory)
         bear_researcher_node   = create_bear_researcher(self.quick_thinking_llm, self.bear_memory)
         research_manager_node  = create_research_manager(self.deep_thinking_llm, self.invest_judge_memory)

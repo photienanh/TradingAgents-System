@@ -30,7 +30,7 @@ def build_descriptions(alphas: list) -> list[str]:
     for a in alphas:
         text = (
             f"Description: {a.get('description', '')}. "
-            f"Expression: {a.get('expression', '')}"
+            f"Formula: {a.get('formula', '')}"
         )
         texts.append(text)
     return texts

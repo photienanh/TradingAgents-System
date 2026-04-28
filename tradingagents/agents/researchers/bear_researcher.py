@@ -8,14 +8,15 @@ from tradingagents.agents.utils.text_sanitize import sanitize_for_prompt
 def create_bear_researcher(llm, memory):
     def bear_node(state) -> dict:
         investment_debate_state = state["investment_debate_state"]
-        history = investment_debate_state.get("history", "")
-        bear_history = investment_debate_state.get("bear_history", "")
+        history                 = investment_debate_state.get("history", "")
+        bear_history            = investment_debate_state.get("bear_history", "")
 
-        current_response = investment_debate_state.get("current_response", "")
-        market_research_report = state["market_report"]
-        sentiment_report = state["sentiment_report"]
-        news_report = state["news_report"]
-        fundamentals_report = state["fundamentals_report"]
+        current_response        = investment_debate_state.get("current_response", "")
+        market_research_report  = state["market_report"]
+        sentiment_report        = state["sentiment_report"]
+        news_report             = state["news_report"]
+        fundamentals_report     = state["fundamentals_report"]
+        quant_report            = state["quant_report"]
 
         curr_situation = f"{market_research_report}\n\n{sentiment_report}\n\n{news_report}\n\n{fundamentals_report}"
         past_memories = memory.get_memories(curr_situation, n_matches=2)
@@ -26,11 +27,14 @@ def create_bear_researcher(llm, memory):
 
         prompt = f"""Bạn là Bear Analyst trong cuộc tranh luận đầu tư. Nhiệm vụ của bạn là xây dựng lập luận SHORT/AVOID (bán hoặc không mua) thuyết phục nhất có thể, dựa trên bằng chứng từ dữ liệu được cung cấp.
 
-## Dữ liệu có sẵn
+
+## Dữ liệu đã có
 Báo cáo thị trường: {sanitize_for_prompt(market_research_report)}
 Tâm lý mạng xã hội: {sanitize_for_prompt(sentiment_report)}
 Tin tức: {sanitize_for_prompt(news_report)}
 Tài chính doanh nghiệp: {sanitize_for_prompt(fundamentals_report)}
+Dữ liệu định lượng từ AlphaGPT: IC, Sharpe và Return là các chỉ số định lượng đã được kiểm chứng.
+{sanitize_for_prompt(quant_report)}
 
 ## Lịch sử tranh luận
 {sanitize_for_prompt(history)}

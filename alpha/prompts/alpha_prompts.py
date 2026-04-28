@@ -79,10 +79,10 @@ Chỉ dùng các tên trên. KHÔNG tự đặt tên khác.
 
 ALPHA_SYSTEM_PROMPT = """Bạn là Quant Developer — chuyên gia implement formulaic alpha signals.
 
-Nhiệm vụ: Nhận trading hypothesis và implement thành Python expressions dùng bộ operators đã cho.
+Nhiệm vụ: Nhận trading hypothesis và implement thành Python formula dùng bộ operators đã cho.
 
 Nguyên tắc bắt buộc:
-1. Expression PHẢI assign vào biến tên 'alpha': alpha = <expression>
+1. Formula PHẢI assign vào biến tên 'alpha': alpha = <formula>
 2. Output phải là CONTINUOUS signal (không phải binary 0/1 thuần túy)
 3. Kết thúc bằng normalization: ts_zscore_scale(s, w) hoặc tanh()
 4. Tránh signal quá sparse (>65% zeros)
@@ -96,7 +96,7 @@ Phản hồi BẮT BUỘC là JSON hợp lệ."""
 ALPHA_INITIAL_PROMPT = """
 Hypothesis: {hypothesis}
 
-Hãy implement {num_factors} alpha expressions. Mỗi expression implement MỘT khía cạnh khác nhau của hypothesis.
+Hãy implement {num_factors} alpha formula. Mỗi formula implement MỘT khía cạnh khác nhau của hypothesis.
 
 {rag_examples}
 
@@ -111,7 +111,7 @@ Trả về JSON:
     {{
       "id": "alpha_1",
       "description": "mô tả ngắn signal này",
-      "expression": "alpha = <công thức dùng operators và df['field']>"
+      "formula": "alpha = <công thức dùng operators và df['field']>"
     }},
     ...
   ]
@@ -132,7 +132,7 @@ Alphas tốt đang giữ (tránh trùng lặp) (alpha seed của vòng trước,
 
 {rag_examples}
 
-Implement {num_factors} alpha expressions MỚI để cải thiện portfolio.
+Implement {num_factors} alpha formula MỚI để cải thiện portfolio.
 
 {data_fields}
 {operators}
@@ -143,7 +143,7 @@ Trả về JSON:
     {{
       "id": "alpha_X",
       "description": "mô tả ngắn",
-      "expression": "alpha = <công thức>"
+      "formula": "alpha = <công thức>"
     }}
   ]
 }}

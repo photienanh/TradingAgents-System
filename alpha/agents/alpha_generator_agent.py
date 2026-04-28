@@ -37,7 +37,7 @@ def _get_fallback_alphas(n: int) -> List[Dict]:
         result.append({
             "id": a.get("id", "fallback"),
             "description": a.get("description", ""),
-            "expression": a.get("expression", ""),
+            "formula": a.get("formula", ""),
         })
     return result
 
@@ -49,13 +49,13 @@ def _format_rag_examples(alphas: list) -> str:
     for a in alphas:
         lines.append(
             f"- {a['id']}: {a.get('description', '')[:80]}\n"
-            f"  expression: `{a.get('expression', '')[:100]}`"
+            f"  formula: `{a.get('formula', '')[:100]}`"
         )
     return "\n".join(lines)
 
 
 async def alpha_generator_agent(state: State, config: RunnableConfig) -> Dict[str, Any]:
-    """Generate seed alphas từ hypothesis — output là expression strings."""
+    """Generate seed alphas từ hypothesis — output là formula strings."""
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.5)
     is_first = not state.alpha_history
 

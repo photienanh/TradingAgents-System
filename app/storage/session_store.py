@@ -27,6 +27,15 @@ class SQLiteSessionStore:
                 )
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS app_state (
+                    state_key TEXT PRIMARY KEY,
+                    payload TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
             conn.commit()
 
     def load_all(self) -> Dict[str, Dict[str, Any]]:
@@ -95,3 +104,30 @@ class SQLiteSessionStore:
 
         self.save_all(cleaned)
         return True
+    
+    def get_state(self, key: str) -> Any:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT payload FROM app_state WHERE state_key = ?", (key,)
+            ).fetchone()
+        if row is None:
+            return None
+        try:
+            return json.loads(row["payload"])
+        except json.JSONDecodeError:
+            return row["payload"]
+
+    def set_state(self, key: str, value: Any) -> None:
+        now = datetime.datetime.now().isoformat()
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO app_state(state_key, payload, updated_at)
+                VALUES(?, ?, ?)
+                ON CONFLICT(state_key) DO UPDATE SET
+                    payload=excluded.payload,
+                    updated_at=excluded.updated_at
+                """,
+                (key, json.dumps(value, ensure_ascii=False), now),
+            )
+            conn.commit()

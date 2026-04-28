@@ -32,7 +32,7 @@ _STATUS: Dict[str, Any] = {
 }
 _SIGNALS_CACHE: Dict[str, Dict[str, Any]] = {}
 DAILY_START_HOUR = int(os.getenv("ALPHAGPT_DAILY_START_HOUR", "9"))
-
+_store: Any = None
 
 def _is_after_daily_start(now: datetime) -> bool:
     return now.hour >= DAILY_START_HOUR
@@ -73,8 +73,10 @@ def _run_daily_task() -> None:
         _load_latest_cache()
         with _STATE_LOCK:
             _STATUS["last_run_day"] = date.today().isoformat()
-            _STATUS["last_run_at"] = datetime.now().isoformat()
-            _STATUS["last_result"] = result
+            _STATUS["last_run_at"]  = datetime.now().isoformat()
+            _STATUS["last_result"]  = result
+        if _store:
+            _store.set_state("alpha_last_run_day", date.today().isoformat())
     except Exception as exc:
         log.exception("[AlphaManager] Daily update failed")
         with _STATE_LOCK:
@@ -169,7 +171,13 @@ def get_all_signals(limit: Optional[int] = None) -> Dict[str, Dict[str, Any]]:
     return {k: v for k, v in items}
 
 
-def init_alpha_manager() -> Dict[str, Any]:
-    """Compatibility init hook used by FastAPI startup."""
+def init_alpha_manager(store: Any = None) -> Dict[str, Any]:
+    global _store
+    _store = store
+    if _store:
+        last_run_day = _store.get_state("alpha_last_run_day")
+        if last_run_day:
+            with _STATE_LOCK:
+                _STATUS["last_run_day"] = last_run_day
     _load_latest_cache()
     return get_status()

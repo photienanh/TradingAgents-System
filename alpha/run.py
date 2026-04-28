@@ -118,7 +118,7 @@ def _print_summary(idea: str, state: dict) -> None:
                 f"Sharpe={a.get('sharpe_oos','N/A')}  "
                 f"Return={ret_str}\n"
                 f"  Description: {a.get('description','')}\n"
-                f"  Expression : {a.get('expression','')[:80]}\n"
+                f"  Formula : {a.get('formula','')[:80]}\n"
             )
     else:
         print("\nKhông tìm được alpha nào đạt ngưỡng.")
