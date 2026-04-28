@@ -12,7 +12,7 @@ from typing import Callable, Dict, Any, List, Set, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from alpha.validators import validate_expression, normalize_expression
+from alpha.validators import validate_formula, normalize_formula
 from alpha.backtester import compute_ic
 from alpha.config import DEFAULT_CONFIG
 
@@ -31,37 +31,37 @@ OPERATOR_FAMILIES = {
 
 # ── Mutation functions ────────────────────────────────────────────────
 
-def mutate_window(expr: str) -> str:
+def mutate_window(formula: str) -> str:
     matches = [(m.start(), m.end(), int(m.group()))
-               for m in re.finditer(r"\b(\d{1,2})\b", expr)
+               for m in re.finditer(r"\b(\d{1,2})\b", formula)
                if 3 <= int(m.group()) <= 60]
     if not matches:
-        return expr
+        return formula
     start, end, val = random.choice(matches)
     idx = min(range(len(WINDOW_VALUES)),
               key=lambda i: abs(WINDOW_VALUES[i] - val))
     new_idx = max(0, min(len(WINDOW_VALUES) - 1,
                          idx + random.choice([-1, 1])))
-    return expr[:start] + str(WINDOW_VALUES[new_idx]) + expr[end:]
+    return formula[:start] + str(WINDOW_VALUES[new_idx]) + formula[end:]
 
 
-def mutate_operator(expr: str) -> str:
+def mutate_operator(formula: str) -> str:
     for _, ops in OPERATOR_FAMILIES.items():
         for op_name in ops:
-            if op_name + "(" in expr:
+            if op_name + "(" in formula:
                 peers = [p for p in ops if p != op_name]
                 if peers:
-                    return expr.replace(op_name + "(", random.choice(peers) + "(", 1)
-    return expr
+                    return formula.replace(op_name + "(", random.choice(peers) + "(", 1)
+    return formula
 
 
-def mutate_wrap_normalize(expr: str) -> str:
-    if "alpha = " not in expr:
-        return expr
-    rhs = expr.split("alpha = ", 1)[1].strip()
+def mutate_wrap_normalize(formula: str) -> str:
+    if "alpha = " not in formula:
+        return formula
+    rhs = formula.split("alpha = ", 1)[1].strip()
     for norm in ["ts_zscore_scale", "ts_maxmin_scale", "tanh"]:
         if rhs.startswith(norm + "("):
-            return expr
+            return formula
     template = random.choice([
         "ts_zscore_scale({}, 20)",
         "tanh(ts_zscore_scale({}, 15))",
@@ -69,9 +69,9 @@ def mutate_wrap_normalize(expr: str) -> str:
     return f"alpha = {template.format(rhs)}"
 
 
-def _extract_subtrees(expr: str) -> list:
+def _extract_subtrees(formula: str) -> list:
     """
-    Trích xuất tất cả function call subtrees từ expression.
+    Trích xuất tất cả function call subtrees từ formula.
     Trả về list of (start_idx, end_idx, subtree_string).
     Xử lý đúng ngoặc lồng nhau.
     """
@@ -82,36 +82,36 @@ def _extract_subtrees(expr: str) -> list:
         r'|zscore_scale|normed_rank|scale|shift|delay|delta|stddev'
         r'|correlation|covariance|product|sum_op|decay_linear)\s*\('
     )
-    for m in func_pat.finditer(expr):
+    for m in func_pat.finditer(formula):
         func_end = m.end() - 1
         depth = 0
         j = func_end
-        while j < len(expr):
-            if expr[j] == '(':
+        while j < len(formula):
+            if formula[j] == '(':
                 depth += 1
-            elif expr[j] == ')':
+            elif formula[j] == ')':
                 depth -= 1
                 if depth == 0:
-                    subtrees.append((m.start(), j + 1, expr[m.start():j + 1]))
+                    subtrees.append((m.start(), j + 1, formula[m.start():j + 1]))
                     break
             j += 1
     return subtrees
 
 
-def crossover(expr_a: str, expr_b: str) -> str:
+def crossover(formula_a: str, formula_b: str) -> str:
     """
-    Swap một subtree từ expr_b vào vị trí subtree cùng operator trong expr_a.
+    Swap một subtree từ formula_b vào vị trí subtree cùng operator trong formula_a.
     Dùng _extract_subtrees để xử lý đúng ngoặc lồng nhau.
     Fallback về mutate_window nếu không tìm được operator chung.
     """
-    if expr_a == expr_b:
-        return mutate_window(expr_a)
+    if formula_a == formula_b:
+        return mutate_window(formula_a)
 
-    trees_a = _extract_subtrees(expr_a)
-    trees_b = _extract_subtrees(expr_b)
+    trees_a = _extract_subtrees(formula_a)
+    trees_b = _extract_subtrees(formula_b)
 
     if not trees_a or not trees_b:
-        return mutate_window(expr_a)
+        return mutate_window(formula_a)
 
     def _op_name(subtree_str: str) -> str:
         m = re.match(r'(\w+)\s*\(', subtree_str)
@@ -131,20 +131,20 @@ def crossover(expr_a: str, expr_b: str) -> str:
 
     common_ops = list(set(groups_a.keys()) & set(groups_b.keys()))
     if not common_ops:
-        return mutate_window(expr_a)
+        return mutate_window(formula_a)
 
     chosen_op = random.choice(common_ops)
     _, _, src_subtree = random.choice(groups_b[chosen_op])
     dst_start, dst_end, _ = random.choice(groups_a[chosen_op])
 
-    new_expr = expr_a[:dst_start] + src_subtree + expr_a[dst_end:]
-    return new_expr
+    new_formula = formula_a[:dst_start] + src_subtree + formula_a[dst_end:]
+    return new_formula
 
 
 # ── Cross-sectional fitness ───────────────────────────────────────────
 
 def _compute_cs_fitness(
-    expression: str,
+    formula: str,
     df_by_ticker: Dict[str, pd.DataFrame],
     forward_return: pd.DataFrame,
 ) -> float:
@@ -154,14 +154,14 @@ def _compute_cs_fitness(
     """
     from alpha import alpha_operators as op_module
 
-    def _exec_ticker(expr, df_t):
+    def _exec_ticker(formula, df_t):
         import numpy as np
         ns = {name: getattr(op_module, name)
               for name in dir(op_module) if not name.startswith("_")}
         ns.update({"df": df_t, "np": np})
         for col in df_t.columns:
             ns[col] = df_t[col]
-        exec(expr, ns)
+        exec(formula, ns)
         series = ns.get("alpha")
         if not isinstance(series, pd.Series):
             return None
@@ -173,7 +173,7 @@ def _compute_cs_fitness(
     signal_parts = {}
     for ticker, df_t in df_by_ticker.items():
         try:
-            norm = _exec_ticker(expression, df_t)
+            norm = _exec_ticker(formula, df_t)
             if norm is not None and norm.dropna().std() > 1e-9:
                 signal_parts[ticker] = norm
         except Exception:
@@ -220,22 +220,22 @@ def enhance_alpha(
     if n_iterations is None:
         n_iterations = DEFAULT_CONFIG.gp_iterations
 
-    seen_expressions: Set[str] = set()
+    seen_formulas: Set[str] = set()
     seed_ic_map: Dict[str, float] = {}  # origin_id → ic_is của seed gốc
 
     population = []
     for seed in seeds:
-        expr = seed.get("expression", "")
-        if not expr:
+        formula = seed.get("formula", "")
+        if not formula:
             continue
-        ic_is = _compute_cs_fitness(expr, df_by_ticker, forward_return)
+        ic_is = _compute_cs_fitness(formula, df_by_ticker, forward_return)
         ic_val = round(float(ic_is), 6) if (ic_is == ic_is) else 0.0
         entry = deepcopy(seed)
         entry["ic_is"] = ic_val
         entry["_origin_id"] = seed.get("id", "")
         entry["_origin_desc"] = seed.get("description", "")
         seed_ic_map[seed.get("id", "")] = ic_val
-        seen_expressions.add(normalize_expression(expr))
+        seen_formulas.add(normalize_formula(formula))
         population.append(entry)
 
     if not population:
@@ -254,41 +254,41 @@ def enhance_alpha(
 
             r = random.random()
             cumul = 0.0
-            new_expr = None
+            new_formula = None
 
             for prob, fn in zip(mutation_probs, mutation_fns):
                 cumul += prob
                 if r < cumul:
-                    new_expr = fn(parent["expression"])
+                    new_formula = fn(parent["formula"])
                     break
 
-            if new_expr is None:
+            if new_formula is None:
                 others = [p for p in population if p is not parent]
                 if others:
                     partner = max(
                         random.sample(others, min(3, len(others))),
                         key=lambda x: x.get("ic_is", 0.0)
                     )
-                    new_expr = crossover(parent["expression"], partner["expression"])
+                    new_formula = crossover(parent["formula"], partner["formula"])
                 else:
-                    new_expr = mutate_window(parent["expression"])
+                    new_formula = mutate_window(parent["formula"])
 
-            if not new_expr:
+            if not new_formula:
                 continue
 
-            is_valid, _ = validate_expression(new_expr)
+            is_valid, _ = validate_formula(new_formula)
             if not is_valid:
                 continue
 
-            norm = normalize_expression(new_expr)
-            if norm in seen_expressions:
+            norm = normalize_formula(new_formula)
+            if norm in seen_formulas:
                 continue
-            seen_expressions.add(norm)
+            seen_formulas.add(norm)
 
-            ic_is = _compute_cs_fitness(new_expr, df_by_ticker, forward_return)
+            ic_is = _compute_cs_fitness(new_formula, df_by_ticker, forward_return)
 
             new_indiv = deepcopy(parent)
-            new_indiv["expression"] = new_expr
+            new_indiv["formula"] = new_formula
             new_indiv["ic_is"] = round(float(ic_is), 6)
             candidates.append(new_indiv)
 
@@ -327,7 +327,7 @@ def enhance_alpha(
         best = best_by_origin.get(seed_id)
 
         if best is None:
-            # Seed không có expression hợp lệ để chạy GP
+            # Seed không có formula hợp lệ để chạy GP
             results.append(deepcopy(seed))
             continue
 
@@ -335,7 +335,7 @@ def enhance_alpha(
         best_ic = best.get("ic_is", 0.0)
 
         is_gp_improved = (
-            normalize_expression(best.get("expression", "")) != normalize_expression(seed.get("expression", ""))
+            normalize_formula(best.get("formula", "")) != normalize_formula(seed.get("formula", ""))
             and best_ic > origin_ic
         )
 

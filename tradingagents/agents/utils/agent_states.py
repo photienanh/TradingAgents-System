@@ -44,7 +44,6 @@ class AgentState(MessagesState):
     sentiment_report:   Annotated[str, "Report from the Social Media Analyst"]
     news_report:        Annotated[str, "Report from the News Researcher"]
     fundamentals_report:Annotated[str, "Report from the Fundamentals Researcher"]
-
     quant_report:       Annotated[str, "Quantitative alpha signal report from AlphaGPT"]
 
     # ── Researcher team (tầng 2) ──────────────────────────────────────

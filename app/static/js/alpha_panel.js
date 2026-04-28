@@ -20,7 +20,7 @@ export async function loadAlphaLibrary(forceReload = false) {
         const res  = await fetch('/api/alpha/library');
         const data = await res.json();
 
-        stats.textContent = `${data.total} alpha • sorted by IC_OOS`;
+        stats.textContent = `${data.total} alpha • sorted by IC`;
         if (!data.alphas || data.alphas.length === 0) {
             container.innerHTML = '<tr><td colspan="6" class="alpha-loading">Chưa có alpha nào trong library.</td></tr>';
             return;

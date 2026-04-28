@@ -27,13 +27,13 @@ def init_db(db_path: str = DB_PATH) -> None:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS hypotheses (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            thread_id   TEXT NOT NULL,
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            thread_id    TEXT NOT NULL,
             trading_idea TEXT NOT NULL,
-            hypothesis  TEXT NOT NULL,
-            reason      TEXT,
-            iteration   INTEGER DEFAULT 0,
-            created_at  TEXT DEFAULT (datetime('now'))
+            hypothesis   TEXT NOT NULL,
+            reason       TEXT,
+            iteration    INTEGER DEFAULT 0,
+            created_at   TEXT DEFAULT (datetime('now'))
         );
 
         CREATE TABLE IF NOT EXISTS alphas (
@@ -41,7 +41,7 @@ def init_db(db_path: str = DB_PATH) -> None:
             thread_id       TEXT NOT NULL,
             hypothesis_id   INTEGER NOT NULL REFERENCES hypotheses(id),
             alpha_id        TEXT NOT NULL,
-            expression      TEXT,
+            formula         TEXT,
             description     TEXT,
             ic_is           REAL,
             ic_oos          REAL,
@@ -126,14 +126,14 @@ class AlphaGPTDB:
         with self._conn() as conn:
             cur = conn.execute("""
                 INSERT INTO alphas
-                    (thread_id, hypothesis_id, alpha_id, expression,
+                    (thread_id, hypothesis_id, alpha_id, formula,
                     description, ic_is, ic_oos, sharpe_oos,
                     return_oos, turnover)
                 VALUES (?,?,?,?,?,?,?,?,?,?)
             """, (
                 thread_id, hypothesis_id,
                 alpha.get("id", ""),
-                alpha.get("expression", ""),
+                alpha.get("formula", ""),
                 alpha.get("description", ""),
                 alpha.get("ic_is"),
                 alpha.get("ic_oos"),
@@ -185,7 +185,7 @@ class AlphaGPTDB:
             rows = conn.execute("""
                 SELECT
                     a.alpha_id   AS id,
-                    a.expression,
+                    a.formula,
                     a.description,
                     a.thread_id,
                     b.ic_oos,
@@ -196,8 +196,8 @@ class AlphaGPTDB:
                 JOIN backtest_results b ON b.alpha_id = a.id
                 WHERE b.is_sota = 1
                   AND b.ic_oos >= ?
-                  AND a.expression IS NOT NULL
-                  AND a.expression != ''
+                  AND a.formula IS NOT NULL
+                  AND a.formula != ''
                 ORDER BY b.ic_oos DESC
                 LIMIT ?
             """, (min_ic_oos, limit)).fetchall()

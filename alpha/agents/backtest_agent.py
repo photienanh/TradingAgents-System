@@ -10,7 +10,7 @@ from typing import Any, Dict, List
 from langchain_core.runnables import RunnableConfig
 from alpha.state import State
 from alpha.backtester import eval_alpha
-from alpha.validators import normalize_expression
+from alpha.validators import normalize_formula
 from alpha.config import DEFAULT_CONFIG
 
 log = logging.getLogger(__name__)
@@ -38,12 +38,12 @@ def _select_sota(evaluated: List[Dict]) -> List[Dict]:
           if a.get("status") == "OK" and _is_stable(a) and _passes_quality(a)]
     alpha_ok.sort(key=lambda x: (x.get("ic_oos") or 0, x.get("sharpe_oos") or 0), reverse=True)
 
-    seen_exprs = set()
+    seen_formulas = set()
     deduped = []
     for alpha in alpha_ok:
-        expression = normalize_expression(alpha.get("expression", ""))
-        if expression not in seen_exprs:
-            seen_exprs.add(expression)
+        formula = normalize_formula(alpha.get("formula", ""))
+        if formula not in seen_formulas:
+            seen_formulas.add(formula)
             deduped.append(alpha)
 
     selected = []
@@ -97,7 +97,7 @@ async def backtest_agent(state: State, config: RunnableConfig) -> Dict[str, Any]
     for alpha in state.candidate_alphas:
         result = eval_alpha(alpha, df_by_ticker, forward_return)
         result["id"]          = alpha.get("id", "")
-        expression            = result.get("expression", "")
+        formula               = result.get("formula", "")
         evaluated_alphas.append(result)
 
         status = result.get("status", "EVAL_ERROR")
@@ -105,16 +105,16 @@ async def backtest_agent(state: State, config: RunnableConfig) -> Dict[str, Any]
         sharpe_oos = result.get("sharpe_oos") or 0.0
         return_oos    = result.get("return_oos") or 0.0
         if status == "OK":
+            log.info(f"  [OK] {result['id']}: {formula}")
             log.info(
-                f"  [OK] {result['id']}: {expression}\n"
-                f"\t\t\tIC_OOS={ic_oos:+.4f} - Sharpe_OOS={sharpe_oos:+.4f} - Return_OOS={return_oos:+.2%}"
+                f"      IC_OOS={ic_oos:+.4f} - Sharpe_OOS={sharpe_oos:+.4f} - Return_OOS={return_oos:+.2%}"
             )
         elif status == "WEAK":
+            log.info(f"  [WEAK] {result['id']}: {formula}")
             log.info(
-                f"  [WEAK] {result['id']}: {expression}\n"
-                f"\t\t\tIC_OOS={ic_oos:+.4f} - Sharpe_OOS={sharpe_oos:+.4f} - Return_OOS={return_oos:+.2%}\n"
-                f"\t\t\tWeak reason: {result.get('weak_reason','')}"
+                f"      IC_OOS={ic_oos:+.4f} - Sharpe_OOS={sharpe_oos:+.4f} - Return_OOS={return_oos:+.2%}"
             )
+            log.info(f"      Weak reason: {result.get('weak_reason','')}")
         else:
             log.info(f"  [ERR] {result['id']} — {result.get('error','')[:60]}")
 

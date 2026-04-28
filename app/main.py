@@ -319,7 +319,7 @@ async def on_startup():
     _load_sessions_from_disk()
     _init_vnstock_auth()
     try:
-        init_alpha_manager()
+        init_alpha_manager(store=session_store)
         logger.info("Alpha manager đã được khởi tạo.")
         logger.info("Alpha daily startup run: waiting for completion...")
         daily_res = await asyncio.to_thread(trigger_if_needed_blocking)

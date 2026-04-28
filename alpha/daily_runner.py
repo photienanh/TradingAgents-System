@@ -31,8 +31,10 @@ ALPHA_LIBRARY_PATH = DATA_DIR / "alpha_library.json"
 SIGNALS_DIR = DATA_DIR / "signals"
 SIGNALS_PATH = SIGNALS_DIR / "alpha_signals.csv"
 
-LONG_THRESHOLD = 0.20
-SHORT_THRESHOLD = -0.20
+SLIGHTLY_LONG_THRESHOLD = 0.30
+SLIGHTLY_SHORT_THRESHOLD = -0.30
+LONG_THRESHOLD = 0.80
+SHORT_THRESHOLD = -0.80
 
 VNSTOCK_FALLBACK_TICKERS = {
     "ASG", "CLC", "CMV", "CVT", "GTA", "HTV", "HU1", "NAV", "NVT",
@@ -68,14 +70,18 @@ def load_alpha_definitions(limit: Optional[int] = None) -> List[Dict[str, Any]]:
     alphas = _load_alpha_library()
     valid: List[Dict[str, Any]] = []
     for alpha in alphas:
-        expression = str(alpha.get("expression", "")).strip()
+        formula = str(alpha.get("formula", "")).strip()
         ic_oos = _safe_float(alpha.get("ic_oos"))
-        if not expression or ic_oos is None:
+        if not formula or ic_oos is None:
             continue
+        description = str(alpha.get("description", ""))
+        if description.startswith("GP"):
+            description = description.split(': ', 1)[1]
         valid.append({
             "id":          str(alpha.get("id", "")),
-            "description": str(alpha.get("description", "")),
-            "expression":  expression,
+            "description": description,
+            "hypothesis":  str(alpha.get("hypothesis", "")),
+            "formula":     formula,
             "ic_oos":      ic_oos,
             "sharpe_oos":  _safe_float(alpha.get("sharpe_oos")),
             "return_oos":  _safe_float(alpha.get("return_oos")),
@@ -188,10 +194,10 @@ def _build_namespace(df: pd.DataFrame) -> Dict[str, Any]:
     return ns
 
 
-def _eval_alpha_series(expression: str, df: pd.DataFrame) -> Optional[pd.Series]:
+def _eval_alpha_series(formula: str, df: pd.DataFrame) -> Optional[pd.Series]:
     try:
         ns = _build_namespace(df)
-        exec(expression, ns)
+        exec(formula, ns)
         series = ns.get("alpha")
         if not isinstance(series, pd.Series):
             return None
@@ -257,12 +263,12 @@ def compute_ticker_signal(
     used_alphas: List[Dict[str, Any]] = []
 
     for idx, alpha in enumerate(alphas):
-        expression = alpha.get("expression") or ""
+        formula = alpha.get("formula") or ""
         ic_oos = _safe_float(alpha.get("ic_oos"))
-        if not expression or ic_oos is None:
+        if not formula or ic_oos is None:
             continue
 
-        series = _eval_alpha_series(expression, df)
+        series = _eval_alpha_series(formula, df)
         sig = _signal_value_today(series) if series is not None else None
         if sig is None:
             continue
@@ -292,8 +298,12 @@ def compute_ticker_signal(
 
     if composite >= LONG_THRESHOLD:
         side = "long"
+    elif composite > SLIGHTLY_LONG_THRESHOLD:
+        side = "slightly long"
     elif composite <= SHORT_THRESHOLD:
         side = "short"
+    elif composite < SLIGHTLY_SHORT_THRESHOLD:
+        side = "slightly short"
     else:
         side = "neutral"
 

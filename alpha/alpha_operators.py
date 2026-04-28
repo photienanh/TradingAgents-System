@@ -1,6 +1,6 @@
 """
 alpha_operators.py
-Tất cả operators cho alpha expressions.
+Tất cả operators cho alpha fomulas.
 Tên hàm được dùng trực tiếp trong exec() của evaluator.
 """
 import numpy as np

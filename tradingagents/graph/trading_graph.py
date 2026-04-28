@@ -115,15 +115,6 @@ class TradingAgentsGraph:
             max_risk_discuss_rounds=int(self.config.get("max_risk_discuss_rounds", 1) or 1),
         )
 
-        alpha_formula_dir = self.config.get(
-            "alpha_library_path",
-            self.config.get("alpha_formula_dir", ""),
-        )
-        alpha_values_dir = self.config.get(
-            "market_data_dir",
-            self.config.get("alpha_values_dir", ""),
-        )
-
         self.graph_setup = GraphSetup(
             self.quick_thinking_llm,
             self.deep_thinking_llm,
@@ -134,8 +125,6 @@ class TradingAgentsGraph:
             self.invest_judge_memory,
             self.risk_manager_memory,
             self.conditional_logic,
-            alpha_formula_dir=alpha_formula_dir,
-            alpha_values_dir=alpha_values_dir,
         )
 
         self.propagator      = Propagator()
@@ -250,7 +239,7 @@ class TradingAgentsGraph:
             "sentiment_report":       final_state["sentiment_report"],
             "news_report":            final_state["news_report"],
             "fundamentals_report":    final_state["fundamentals_report"],
-            "quant_report":           final_state.get("quant_report", ""),
+            "quant_report":           final_state["quant_report"],
             "investment_debate_state": {
                 "bull_history":    final_state["investment_debate_state"]["bull_history"],
                 "bear_history":    final_state["investment_debate_state"]["bear_history"],

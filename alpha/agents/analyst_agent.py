@@ -47,7 +47,7 @@ async def analyst_agent(state: State, config: RunnableConfig) -> Dict[str, Any]:
     for alpha in ok_alphas:
         return_str = (f"{alpha.get('return_oos', 0)*100:+.1f}%" if alpha.get("return_oos") is not None else "N/A")
         seed = seed_map.get(alpha["id"])
-        seed_line = f"\n  Seed expr: {seed.get('expression','')[:80]}" if seed and seed.get("expression") != alpha.get("expression") else ""
+        seed_line = f"\n  Seed formula: {seed.get('formula','')[:80]}" if seed and seed.get("formula") != alpha.get("formula") else ""
         results_text.append(
             f"- {alpha['id']} status=OK\n"
             f"  IC_IS={alpha.get('ic_is',0):+.4f}  IC_OOS={alpha.get('ic_oos',0):+.4f}  "
@@ -59,14 +59,14 @@ async def analyst_agent(state: State, config: RunnableConfig) -> Dict[str, Any]:
     for alpha in weak_alphas:
         return_str = (f"{alpha.get('return_oos', 0)*100:+.1f}%" if alpha.get("return_oos") is not None else "N/A")
         seed = seed_map.get(alpha["id"])
-        seed_line = f"\n  Seed expr: {seed.get('expression','')[:80]}" if seed and seed.get("expression") != alpha.get("expression") else ""
+        seed_line = f"\n  Seed formula: {seed.get('formula','')[:80]}" if seed and seed.get("formula") != alpha.get("formula") else ""
         results_text.append(
             f"- {alpha['id']} status=WEAK\n"
             f"  IC_OOS={alpha.get('ic_oos', 0):+.4f}  "
             f"Sharpe={alpha.get('sharpe_oos',0):+.3f}  Return={return_str}  "
             f"Turnover={alpha.get('turnover',0):.3f}\n"
             f"  Weak Reason: {alpha.get('weak_reason', '')}\n"
-            f"  expression: {alpha.get('expression', '')[:80]}"
+            f"  formula: {alpha.get('formula', '')[:80]}"
             f"{seed_line}"
         )
     for alpha in err_alphas:

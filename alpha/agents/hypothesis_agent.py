@@ -29,7 +29,7 @@ def _format_rag_examples(alphas: list) -> str:
     for a in alphas:
         lines.append(
             f"- **{a['id']}**: {a.get('description', '')}\n"
-            f"  `{a.get('expression', '')[:100]}`"
+            f"  `{a.get('formula', '')[:100]}`"
         )
     return "\n".join(lines)
 

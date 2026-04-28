@@ -211,7 +211,27 @@ def get_market_context(
         f"Phân tích: 7 ngày và 30 ngày\n"
     )
 
-    lines.append("## 1. VN30 Index")
+    lines.append("## 1. VN-Index")
+    vnindex = _fetch_ohlcv("VNINDEX", start=start_str, end=end_str, source="KBS")
+    if vnindex.empty:
+        lines.append("  Không lấy được dữ liệu VNINDEX.")
+    else:
+        day_info = day_change(vnindex, ref_ts)
+        if day_info["change_pct"] is not None:
+            lines.append(
+                f"  Ngày {day_info['date']}: mở cửa {day_info['open']:,.2f} | "
+                f"đóng cửa {day_info['close']:,.2f} | "
+                f"thay đổi {day_info['change_pct']:+.2f}% → **{day_info['status']}**"
+            )
+        else:
+            lines.append(f"  Ngày {day_info['date']}: {day_info['status']}")
+        vnindex_7d  = filter_window(vnindex, ref_dt, SHORT_WINDOW)
+        lines.append(format_trend_block(vnindex_7d,  "Xu hướng  7 ngày"))
+        vnindex_30d = filter_window(vnindex, ref_dt, LONG_WINDOW)
+        lines.append(format_trend_block(vnindex_30d, "Xu hướng 30 ngày"))
+    lines.append("")
+
+    lines.append("## 2. VN30-Index")
     vn30_df = _fetch_ohlcv("VN30", start=start_str, end=end_str, source="KBS")
 
     if vn30_df.empty:
@@ -237,7 +257,7 @@ def get_market_context(
 
     lines.append("")
 
-    lines.append(f"## 2. Ticker {ticker}")
+    lines.append(f"## 3. Ticker {ticker}")
     ticker_df = _fetch_ohlcv(ticker, start=start_str, end=end_str)
 
     if ticker_df.empty:
@@ -260,7 +280,7 @@ def get_market_context(
 
     lines.append("")
 
-    lines.append("## 3. Breadth VN30")
+    lines.append("## 4. Breadth VN30")
 
     def _empty_breadth() -> dict:
         return {"tăng": [], "giảm": [], "đi ngang": [], "lỗi": []}
@@ -317,7 +337,7 @@ def get_market_context(
         # ------------------------------------------------------------------
         # Đánh giá cùng nhóm ngành VN30
         # ------------------------------------------------------------------
-        lines.append("## 4. Đánh giá cùng nhóm ngành (VN30)")
+        lines.append("## 5. Đánh giá cùng nhóm ngành (VN30)")
 
         peers = [s for s in industry_symbols if s != ticker]
 
@@ -366,12 +386,17 @@ def get_market_context(
     # Tóm tắt
     # ------------------------------------------------------------------
     lines.append("## Tóm tắt")
+    vnindex_trend_7d  = classify_trend(filter_window(vnindex, ref_dt, SHORT_WINDOW)) if not vnindex.empty else "N/A"
+    vnindex_trend_30d = classify_trend(filter_window(vnindex, ref_dt, LONG_WINDOW))  if not vnindex.empty else "N/A"
     vn30_trend_7d  = classify_trend(filter_window(vn30_df,   ref_dt, SHORT_WINDOW)) if not vn30_df.empty   else "N/A"
     vn30_trend_30d = classify_trend(filter_window(vn30_df,   ref_dt, LONG_WINDOW))  if not vn30_df.empty   else "N/A"
     tick_trend_7d  = classify_trend(filter_window(ticker_df, ref_dt, SHORT_WINDOW)) if not ticker_df.empty else "N/A"
     tick_trend_30d = classify_trend(filter_window(ticker_df, ref_dt, LONG_WINDOW))  if not ticker_df.empty else "N/A"
     lines.append(
-        f"  VN30 Index  – 7N: {vn30_trend_7d} | 30N: {vn30_trend_30d}"
+        f"  VN-Index    – 7N: {vnindex_trend_7d} | 30N: {vnindex_trend_30d}"
+    )
+    lines.append(
+        f"  VN30-Index  – 7N: {vn30_trend_7d} | 30N: {vn30_trend_30d}"
     )
     lines.append(
         f"  {ticker} – 7N: {tick_trend_7d} | 30N: {tick_trend_30d}"

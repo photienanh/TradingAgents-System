@@ -136,9 +136,12 @@ async def alpha_library_list() -> Dict[str, Any]:
  
     rows = []
     for a in alphas:
+        description = str(a.get("description", ""))
+        if description.startswith("GP"):
+            description = description.split(': ', 1)[-1]
         rows.append({
             "id":          str(a.get("id", "")),
-            "description": str(a.get("description", "")),
+            "description": description,
             "expression":  str(a.get("expression", "")),
             "ic_oos":      _safe_float(a.get("ic_oos")),
             "sharpe_oos":  _safe_float(a.get("sharpe_oos")),
@@ -167,6 +170,15 @@ class _QueueHandler(logging.Handler):
             self.q.put_nowait(self.format(record))
         except Exception:
             pass
+
+
+class _AlphaLogFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        name = record.name or ""
+        if name.startswith("alpha"):
+            return True
+        msg = record.getMessage()
+        return msg.startswith("[Alpha") or msg.startswith("[Run]")
  
  
 async def _pipeline_sse_generator(idea: str, iterations: int):
@@ -181,7 +193,11 @@ async def _pipeline_sse_generator(idea: str, iterations: int):
     # Attach queue handler to root logger for capture
     handler = _QueueHandler(log_queue)
     handler.setFormatter(logging.Formatter("%(asctime)s [%(name)s] %(levelname)s  %(message)s", "%H:%M:%S"))
+    handler.setLevel(logging.INFO)
+    handler.addFilter(_AlphaLogFilter())
     root_logger = logging.getLogger()
+    prev_root_level = root_logger.level
+    root_logger.setLevel(logging.INFO)
     root_logger.addHandler(handler)
  
     def _run():
@@ -221,6 +237,7 @@ async def _pipeline_sse_generator(idea: str, iterations: int):
         await asyncio.sleep(0)
  
     root_logger.removeHandler(handler)
+    root_logger.setLevel(prev_root_level)
  
     # Send final result summary
     sota = result_holder.get("sota", [])
@@ -233,7 +250,7 @@ async def _pipeline_sse_generator(idea: str, iterations: int):
             f"  [{a.get('id','?')}] {a.get('description','')[:60]}"
         )
         summary_lines.append(
-            f"    IC_OOS={f'{ic:+.4f}' if ic is not None else 'N/A'}"
+            f"    IC={f'{ic:+.4f}' if ic is not None else 'N/A'}"
             f"  Sharpe={f'{sh:+.3f}' if sh is not None else 'N/A'}"
             f"  Return={f'{ret*100:+.1f}%' if ret is not None else 'N/A'}"
         )

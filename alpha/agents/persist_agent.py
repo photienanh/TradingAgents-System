@@ -2,7 +2,7 @@
 """
 Persist agent — lưu kết quả vào SQLite và alpha_library.json.
 alpha_library.json: file chung tích lũy tất cả alpha OK qua mọi run,
-đánh số thứ tự toàn cục, dedup theo expression.
+đánh số thứ tự toàn cục, dedup theo formula.
 """
 import json
 import logging
@@ -36,15 +36,15 @@ def _save_library(path: str, library: List[Dict]) -> None:
         json.dump(library, f, ensure_ascii=False, indent=2)
 
 
-def _normalize_expr(expr: str) -> str:
-    """Normalize expression để dedup."""
-    return " ".join(expr.split()).lower()
+def _normalize_formula(formula: str) -> str:
+    """Normalize formula để dedup."""
+    return " ".join(formula.split()).lower()
 
 def _append_to_library(sota_alphas: List[Dict],
                        hypothesis: str) -> int:
     library = _load_library(LIBRARY_PATH)
-    existing_exprs = {
-        _normalize_expr(a.get("expression", ""))
+    existing_formulas = {
+        _normalize_formula(a.get("formula", ""))
         for a in library
     }
 
@@ -52,13 +52,13 @@ def _append_to_library(sota_alphas: List[Dict],
     added   = 0
 
     for a in sota_alphas:
-        expr = a.get("expression", "")
-        if not expr:
+        formula = a.get("formula", "")
+        if not formula:
             continue
 
-        # Dedup theo expression
-        if _normalize_expr(expr) in existing_exprs:
-            log.debug(f"[Persist] Duplicate expression, skip: {a.get('id')}")
+        # Dedup theo formula
+        if _normalize_formula(formula) in existing_formulas:
+            log.debug(f"[Persist] Duplicate formula, skip: {a.get('id')}")
             continue
 
         ic  = a.get("ic_oos")
@@ -68,7 +68,7 @@ def _append_to_library(sota_alphas: List[Dict],
             "no":          next_no,
             "id":          a.get("id", f"alpha_{next_no}"),
             "description": a.get("description", ""),
-            "expression":  expr,
+            "formula":     formula,
             "ic_oos":      round(float(ic), 6)  if ic  is not None else None,
             "sharpe_oos":  round(float(a.get("sharpe_oos", 0) or 0), 4),
             "return_oos":  round(float(ret), 4) if ret is not None else None,
@@ -76,7 +76,7 @@ def _append_to_library(sota_alphas: List[Dict],
             "saved_at":    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
         library.append(entry)
-        existing_exprs.add(_normalize_expr(expr))
+        existing_formulas.add(_normalize_formula(formula))
         next_no += 1
         added   += 1
 

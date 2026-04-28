@@ -27,7 +27,7 @@ from typing import Dict, Any
 import logging
 
 from alpha import alpha_operators as op
-from alpha.validators import validate_expression
+from alpha.validators import validate_formula
 from alpha.config import DEFAULT_CONFIG
 
 log = logging.getLogger(__name__)
@@ -135,9 +135,9 @@ def _is_valid_signal(series: pd.Series, min_valid_ratio: float = 0.5) -> tuple:
     return True, "OK"
 
 
-def _exec_on_ticker(expression: str, ticker_df: pd.DataFrame) -> Optional[pd.Series]:
+def _exec_on_ticker(formula: str, ticker_df: pd.DataFrame) -> Optional[pd.Series]:
     ns = _build_namespace(ticker_df)
-    exec(expression, ns)
+    exec(formula, ns)
     signal = ns.get("alpha")
     if not isinstance(signal, pd.Series):
         return None
@@ -166,8 +166,8 @@ def eval_alpha(
         "series": None,
     })
 
-    expr = alpha_def.get("expression", "")
-    is_valid, err_msg = validate_expression(expr)
+    formula = alpha_def.get("formula", "")
+    is_valid, err_msg = validate_formula(formula)
     if not is_valid:
         result["error"] = f"validation: {err_msg}"
         return result
@@ -177,7 +177,7 @@ def eval_alpha(
         skip_count = 0
         for ticker, ticker_df in df_by_ticker.items():
             try:
-                signal_by_ticker = _exec_on_ticker(expr, ticker_df)
+                signal_by_ticker = _exec_on_ticker(formula, ticker_df)
                 if signal_by_ticker is not None:
                     valid, _ = _is_valid_signal(signal_by_ticker)
                     if valid:
@@ -190,7 +190,6 @@ def eval_alpha(
         if len(signal_all) < 3:
             result["error"] = (
                 f"chỉ có {len(signal_all)} tickers có signal hợp lệ "
-                f"(bỏ qua {skip_count})"
             )
             return result
 

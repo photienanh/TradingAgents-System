@@ -62,7 +62,7 @@ def _load_model():
 def _make_embed_text(alpha: Dict) -> str:
     return (
         f"Description: {alpha.get('description', '')}. "
-        f"Expression: {alpha.get('expression', '')}"
+        f"Formula: {alpha.get('formula', '')}"
     )
 
 
@@ -143,7 +143,7 @@ def _build_index(all_alphas: List[Dict]) -> bool:
     for a in all_alphas:
         meta.append({
             "id":          a.get("id", ""),
-            "expression":  a.get("expression", ""),
+            "formula":     a.get("formula", ""),
             "description": a.get("description", ""),
             "source":      a.get("source", "kakushadze"),
             "ic_oos":      a.get("ic_oos"),
