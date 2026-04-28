@@ -106,6 +106,7 @@ def _init_vnstock_auth() -> None:
 class AnalysisRequest(BaseModel):
     ticker: str
     analysis_date: Optional[str] = None
+    trading_horizon: Optional[str] = "short"
     analysts: Optional[List[str]] = ["market", "social", "news", "fundamentals"]
     research_depth: Optional[int] = 1
     deep_think_llm: Optional[str] = "gpt-4o-mini"
@@ -132,9 +133,6 @@ class AnalysisStatus(BaseModel):
     current_report: Optional[str] = None
     final_report: Optional[str] = None
     decision: Optional[Any] = None
-    decision_raw: Optional[Any] = None
-    decision_fused: Optional[str] = None
-    decision_fusion_note: Optional[str] = None
     alpha_signal: Optional[Dict[str, Any]] = None
     messages: List[Dict[str, Any]] = []
     tool_calls: List[Dict[str, Any]] = []
@@ -173,6 +171,7 @@ async def start_analysis(request: AnalysisRequest, background_tasks: BackgroundT
         session_mgr.set(session_id, {
             "ticker":           request.ticker,
             "analysis_date":    analysis_date,
+            "trading_horizon":  request.trading_horizon or "short", 
             "analysts":         selected_analysts,
             "alpha_signal":     alpha_signal,
             "status":           "initializing",
@@ -187,7 +186,7 @@ async def start_analysis(request: AnalysisRequest, background_tasks: BackgroundT
             run_trading_analysis,
             session_id, request.ticker, analysis_date, config,
             selected_analysts, alpha_signal,
-            session_mgr, _save_sessions_to_disk,
+            session_mgr, _save_sessions_to_disk, request.trading_horizon or "short",
         )
         return AnalysisResponse(
             session_id=session_id,
@@ -219,9 +218,6 @@ async def get_analysis_status(session_id: str):
             current_report=mb.current_report,
             final_report=mb.final_report,
             decision=session.get("decision"),
-            decision_raw=session.get("decision_raw"),
-            decision_fused=session.get("decision_fused"),
-            decision_fusion_note=session.get("decision_fusion_note"),
             alpha_signal=session.get("alpha_signal"),
             messages=list(mb.messages),
             tool_calls=list(mb.tool_calls),
@@ -245,9 +241,6 @@ async def get_analysis_status(session_id: str):
         current_report=session.get("current_report") or rebuilt_current,
         final_report=session.get("final_report") or rebuilt_final,
         decision=session.get("decision"),
-        decision_raw=session.get("decision_raw"),
-        decision_fused=session.get("decision_fused"),
-        decision_fusion_note=session.get("decision_fusion_note"),
         alpha_signal=session.get("alpha_signal"),
         messages=session.get("messages") or [],
         tool_calls=session.get("tool_calls") or [],

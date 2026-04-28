@@ -16,11 +16,13 @@ class Propagator:
         company_name: str,
         trade_date: str,
         alphagpt_signal: Dict[str, Any] | None = None,
+        trading_horizon: str = "short",
     ) -> Dict[str, Any]:
         return {
             "messages":           [("human", company_name)],
             "company_of_interest": company_name,
             "trade_date":         str(trade_date),
+            "trading_horizon":    trading_horizon,
             "alphagpt_signal":    alphagpt_signal or {},
 
             # ── Analyst reports ────────────────────────────────────────

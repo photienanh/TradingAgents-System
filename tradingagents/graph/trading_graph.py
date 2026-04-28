@@ -203,11 +203,15 @@ class TradingAgentsGraph:
         trade_date,
         alphagpt_signal: Optional[Dict[str, Any]] = None,
         progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+        trading_horizon: str = "short",
     ):
         self.ticker = company_name
         normalized_alpha_signal = self._normalize_alphagpt_signal(alphagpt_signal)
         init_agent_state = self.propagator.create_initial_state(
-            company_name, trade_date, alphagpt_signal=normalized_alpha_signal
+            company_name,
+            trade_date,
+            alphagpt_signal=normalized_alpha_signal,
+            trading_horizon=trading_horizon,
         )
         args = self.propagator.get_graph_args()
 

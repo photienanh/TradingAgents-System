@@ -142,11 +142,11 @@ function renderSectionBlock(label, body, color, isDecision, cfg) {
 
     if (isDecision) {
         const explicitDecisionPatterns = [
-            /^\s{0,3}>?\s*\*{0,2}\s*FINAL\s+TRANSACTION\s+PROPOSAL\s*:\s*\*{0,2}\s*(BUY|SELL|HOLD)\b.*$/gim,
-            /^\s{0,3}>?\s*\*{0,2}\s*RECOMMENDATION\s*:\s*\*{0,2}\s*(BUY|SELL|HOLD)\b.*$/gim,
-            /^\s{0,3}>?\s*\*{0,2}\s*Khuyến\s*nghị(?:\s+cuối\s+cùng)?\s*:\s*\*{0,2}\s*(BUY|SELL|HOLD)\b.*$/gim,
-            /^\s{0,3}>?\s*\*{0,2}\s*Quyết\s*định(?:\s+cuối\s+cùng)?\s*:\s*\*{0,2}\s*(BUY|SELL|HOLD)\b.*$/gim,
-            /^\s{0,3}####\s+(?:Quyết\s*Định|Đề\s*Xuất\s*Hành\s*Động)\s*:\s*\*{0,2}\s*(BUY|SELL|HOLD)\b.*$/gim,
+            /^\s{0,3}>?\s*\*{0,2}\s*FINAL\s+TRANSACTION\s+PROPOSAL\s*:\s*\*{0,2}\s*(NOT\s+BUY|BUY|SELL|HOLD)\b.*$/gim,
+            /^\s{0,3}>?\s*\*{0,2}\s*RECOMMENDATION\s*:\s*\*{0,2}\s*(NOT\s+BUY|BUY|SELL|HOLD)\b.*$/gim,
+            /^\s{0,3}>?\s*\*{0,2}\s*Khuyến\s*nghị(?:\s+cuối\s+cùng)?\s*:\s*\*{0,2}\s*(NOT\s+BUY|BUY|SELL|HOLD)\b.*$/gim,
+            /^\s{0,3}>?\s*\*{0,2}\s*Quyết\s*định(?:\s+cuối\s+cùng)?\s*:\s*\*{0,2}\s*(NOT\s+BUY|BUY|SELL|HOLD)\b.*$/gim,
+            /^\s{0,3}####\s+(?:Quyết\s*Định|Đề\s*Xuất\s*Hành\s*Động)\s*:\s*\*{0,2}\s*(NOT\s+BUY|BUY|SELL|HOLD)\b.*$/gim,
         ];
 
         let latestDecision = '';
@@ -169,7 +169,7 @@ function renderSectionBlock(label, body, color, isDecision, cfg) {
                 const normalized = line.replace(/[>*_`#-]/g, ' ').replace(/\s+/g, ' ').trim();
                 const hasLabel = /(final\s+transaction\s+proposal|recommendation|khuyến\s*nghị|quyết\s*định|đề\s*xuất\s*hành\s*động)/i.test(normalized);
                 const hasColon = normalized.includes(':');
-                const actions = [...normalized.matchAll(/\b(BUY|SELL|HOLD)\b/gi)].map(v => v[1].toUpperCase());
+                const actions = [...normalized.matchAll(/\bNOT\s+BUY\b|\b(BUY|SELL|HOLD)\b/gi)].map(v => v[0].toUpperCase().replace(/\s+/, ' '));
                 const uniqueActions = [...new Set(actions)];
                 if (hasLabel && hasColon && uniqueActions.length === 1) {
                     latestDecision = uniqueActions[0];
@@ -200,8 +200,19 @@ function renderSectionBlock(label, body, color, isDecision, cfg) {
 }
 
 function makeDecisionBadge(v) {
-    const c = { BUY: '#10b981', SELL: '#ef4444', HOLD: '#f59e0b' }[v] || '#6b7280';
-    return `<span style="display:inline-flex;align-items:center;background:${c}18;border:1.5px solid ${c}55;color:${c};border-radius:8px;padding:3px 14px;font-size:0.78rem;font-weight:800;letter-spacing:0.06em;">${v}</span>`;
+    const upper = v.toUpperCase();
+    const label = upper.includes('NOT BUY') ? 'NOT BUY'
+                : upper.includes('BUY')     ? 'BUY'
+                : upper.includes('SELL')    ? 'SELL'
+                : upper.includes('HOLD')    ? 'HOLD'
+                : v;
+    const c = {
+        'BUY':     '#10b981',
+        'NOT BUY': '#ef4444',
+        'SELL':    '#ef4444',
+        'HOLD':    '#f59e0b',
+    }[label] || '#6b7280';
+    return `<span style="display:inline-flex;align-items:center;background:${c}18;border:1.5px solid ${c}55;color:${c};border-radius:8px;padding:3px 14px;font-size:0.78rem;font-weight:800;letter-spacing:0.06em;">${label}</span>`;
 }
 
 function normalizeBodyHeadings(md) {
@@ -229,11 +240,14 @@ export function buildDecisionHtml(decision) {
 
     if (typeof decision === 'string') {
         const upper = decision.toUpperCase();
-        const type  = upper.includes('BUY') ? 'BUY' : upper.includes('SELL') ? 'SELL' : 'HOLD';
-        const cls   = type.toLowerCase();
+        const type  = upper.includes('NOT BUY') ? 'NOT BUY'
+                    : upper.includes('BUY')     ? 'BUY'
+                    : upper.includes('SELL')    ? 'SELL'
+                    : 'HOLD';
+        const cls   = type === 'NOT BUY' ? 'sell' : type.toLowerCase();
         return `
             <div class="decision-highlight decision-${cls}">
-                <div class="decision-icon"><i class="${decisionIconClass[cls]} decision-icon-${cls}" aria-hidden="true"></i></div>
+                <div class="decision-icon"><i class="${decisionIconClass[cls] || decisionIconClass.sell} decision-icon-${cls}" aria-hidden="true"></i></div>
                 <div class="decision-text"><h2>${type}</h2></div>
             </div>`;
     }

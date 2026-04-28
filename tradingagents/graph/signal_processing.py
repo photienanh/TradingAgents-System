@@ -18,12 +18,12 @@ class SignalProcessor:
             full_signal: Complete trading signal text
 
         Returns:
-            Extracted decision (BUY, SELL, or HOLD)
+            Extracted decision (NOT BUY, BUY, SELL, or HOLD)
         """
         messages = [
             (
                 "system",
-                "Bạn là trợ lý phân tích quyết định đầu tư từ báo cáo của các chuyên gia. Nhiệm vụ của bạn là trích xuất duy nhất một quyết định giao dịch: SELL, BUY hoặc HOLD. Chỉ trả về đúng một từ SELL, BUY hoặc HOLD; không thêm bất kỳ nội dung nào khác.",
+                "Bạn là trợ lý phân tích quyết định đầu tư từ báo cáo của các chuyên gia. Nhiệm vụ của bạn là trích xuất duy nhất một quyết định giao dịch: SELL, BUY, NOT BUY hoặc HOLD. Chỉ trả về đúng một trong 4 giá trị SELL, BUY, NOT BUY hoặc HOLD; không thêm bất kỳ nội dung nào khác.",
             ),
             ("human", full_signal),
         ]

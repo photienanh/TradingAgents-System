@@ -15,13 +15,14 @@ from app.services.session_serialization import SECTION_TITLES, DEFAULT_AGENT_NAM
 
 # ── Analyst metadata ────────────────────────────────────────────────────────
 
-ANALYST_ORDER = ["market", "social", "news", "fundamentals"]
+ANALYST_ORDER = ["market", "social", "news", "fundamentals", "alpha"]
 
 ANALYST_DISPLAY: Dict[str, str] = {
     "market":       "Market Analyst",
     "social":       "Social Analyst",
     "news":         "News Analyst",
     "fundamentals": "Fundamentals Analyst",
+    "alpha":        "AlphaGPT Analyst",
 }
 
 REPORT_KEY: Dict[str, str] = {
@@ -29,6 +30,7 @@ REPORT_KEY: Dict[str, str] = {
     "social":       "sentiment_report",
     "news":         "news_report",
     "fundamentals": "fundamentals_report",
+    "alpha":        "quant_report",
 }
 
 TOOL_ANALYST: Dict[str, str] = {

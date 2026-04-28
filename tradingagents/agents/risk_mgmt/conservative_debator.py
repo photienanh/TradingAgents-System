@@ -9,6 +9,7 @@ from tradingagents.agents.utils.text_sanitize import sanitize_for_prompt
 
 def create_safe_debator(llm):
     def safe_node(state) -> dict:
+        horizon = state.get("trading_horizon", "short")
         risk_debate_state = state["risk_debate_state"]
         history      = risk_debate_state.get("history", "")
         safe_history = risk_debate_state.get("safe_history", "")
@@ -27,7 +28,17 @@ def create_safe_debator(llm):
         if current_alphagpt_response:
             alphagpt_context = f"\nTín hiệu định lượng AlphaGPT: {sanitize_for_prompt(current_alphagpt_response)}"
 
+        horizon_note = (
+            "Chiến lược đang đánh giá là LƯỚT SÓNG NGẮN HẠN (2-5 ngày). "
+            "Tập trung vào rủi ro và cơ hội trong khung thời gian này."
+        ) if horizon == "short" else (
+            "Chiến lược đang đánh giá là ĐẦU TƯ DÀI HẠN. "
+            "Quyết định cuối cùng chỉ là BUY hoặc NOT BUY. "
+            "Không đánh giá biến động ngắn hạn — chỉ rủi ro có thể phá vỡ luận điểm dài hạn."
+        )
+
         prompt = (
+            f"{horizon_note}\n\n"
             "Bạn là Safe/Conservative Analyst trong nhóm quản lý rủi ro. Vai trò của bạn là đại diện cho góc nhìn 'downside-focused': "
             "nhận diện các rủi ro bị đánh giá thấp, bảo vệ danh mục khỏi thua lỗ không cần thiết.\n\n"
 

@@ -280,9 +280,6 @@ def build_persistable_session(session_data: Dict[str, Any]) -> Dict[str, Any]:
         "cancel_requested":     to_jsonable(session_data.get("cancel_requested")),
         "created_at":           to_jsonable(session_data.get("created_at")),
         "decision":             to_jsonable(session_data.get("decision")),
-        "decision_raw":         to_jsonable(session_data.get("decision_raw")),
-        "decision_fused":       to_jsonable(session_data.get("decision_fused")),
-        "decision_fusion_note": to_jsonable(session_data.get("decision_fusion_note")),
         "final_state":          to_jsonable(session_data.get("final_state")),
         "error":                to_jsonable(session_data.get("error")),
         "error_details":        to_jsonable(session_data.get("error_details")),
@@ -294,14 +291,6 @@ def build_persistable_session(session_data: Dict[str, Any]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Các hàm cũ giữ lại để không break import ở nơi khác
 # ---------------------------------------------------------------------------
-
-def extract_decision_label(raw_decision: Any) -> str:
-    text = str(raw_decision or "").upper()
-    if "BUY"  in text: return "BUY"
-    if "SELL" in text: return "SELL"
-    if "HOLD" in text: return "HOLD"
-    return "HOLD"
-
 
 def extract_tool_call_names(message: Any) -> List[str]:
     names: List[str] = []

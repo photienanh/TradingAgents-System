@@ -1,11 +1,30 @@
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from tradingagents.agents.utils.agent_utils import get_f247_forum_posts, get_ticker_news
 
+_HORIZON_CTX_SOCIAL = {
+    "short": (
+        "## KHUNG THỜI GIAN: LƯỚT SÓNG NGẮN HẠN\n"
+        "Tập trung tâm lý thị trường trong 3-7 ngày gần nhất:\n"
+        "- Mức độ FOMO/FUD hiện tại và xu hướng thay đổi so với tuần trước\n"
+        "- Các luồng thảo luận nóng, tin đồn đang lan truyền\n"
+        "- Sự kiện nào đang được nhà đầu tư cá nhân chú ý\n"
+        "- Dấu hiệu phân phối hay tích lũy qua quan sát diễn đàn\n"
+    ),
+    "long": (
+        "## KHUNG THỜI GIAN: ĐẦU TƯ DÀI HẠN\n"
+        "Đánh giá tâm lý thị trường tổng thể với mã này:\n"
+        "- Mức độ được quan tâm và uy tín doanh nghiệp trong cộng đồng đầu tư\n"
+        "- Xu hướng thay đổi nhận thức về doanh nghiệp theo thời gian\n"
+        "- Ý kiến của các nhà đầu tư có kinh nghiệm (không phải lướt sóng)\n"
+        "- Rủi ro uy tín và quản trị qua phản ánh của cộng đồng\n"
+    ),
+}
 
 def create_social_media_analyst(llm):
     def social_media_analyst_node(state):
         current_date = state["trade_date"]
         ticker = state["company_of_interest"]
+        horizon_context = _HORIZON_CTX_SOCIAL.get(state.get("trading_horizon", "short"), _HORIZON_CTX_SOCIAL["short"])
 
         tools = [
             get_f247_forum_posts,
@@ -13,6 +32,7 @@ def create_social_media_analyst(llm):
         ]
 
         system_message = (
+            f"{horizon_context}\n"
             """Bạn là Social Media & Sentiment Analyst chuyên nghiệp - nhà phân tích mạng xã hội và tin tức theo từng doanh nghiệp. Nhiệm vụ DUY NHẤT của bạn là thu thập và phân tích tâm lý thị trường, thảo luận mạng xã hội và tin tức doanh nghiệp. Bạn KHÔNG đưa ra khuyến nghị giao dịch (BUY/SELL/HOLD).
 
 Hãy phân tích toàn diện:

@@ -62,8 +62,8 @@ export async function startAnalysis() {
 
     const requestData = {
         ticker:           formData.get('ticker').toUpperCase(),
-        analysis_date:    formData.get('analysis_date') || null,
         analysts:         selectedAnalysts,
+        trading_horizon:  formData.get('trading_horizon') || 'short',
         research_depth:   parseInt(formData.get('research_depth')),
         deep_think_llm:   formData.get('deep_think_llm'),
         quick_think_llm:  formData.get('quick_think_llm'),
@@ -204,6 +204,7 @@ export function startNewAnalysis() {
     activePollingSessionId = null;
 
     document.getElementById('analysis-form').reset();
+    window._setHorizon('short', document.querySelector('.horizon-btn[data-horizon="short"]'));
     document.getElementById('analysis-progress-card').classList.add('hidden');
     document.getElementById('new-analysis-btn')?.classList.add('hidden');
 

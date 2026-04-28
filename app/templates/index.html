@@ -150,11 +150,22 @@
                                 <label for="ticker">Stock Ticker</label>
                                 <input type="text" id="ticker" name="ticker" placeholder="HPG, VNM, MBB..." required>
                             </div>
-                            <div class="form-group">
-                                <label for="analysis_date">Analysis Date</label>
-                                <input type="date" id="analysis_date" name="analysis_date">
-                                <small>Leave empty to use today</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Trading Horizon</label>
+                            <div class="horizon-toggle">
+                                <button type="button" class="horizon-btn active" data-horizon="short" onclick="window._setHorizon('short', this)">
+                                    <i class="fa-solid fa-bolt-lightning"></i>
+                                    <span class="horizon-label">Swing trading</span>
+                                    <span class="horizon-sub">2–7 days</span>
+                                </button>
+                                <button type="button" class="horizon-btn" data-horizon="long" onclick="window._setHorizon('long', this)">
+                                    <i class="fa-solid fa-seedling"></i>
+                                    <span class="horizon-label">Long-term investing</span>
+                                    <span class="horizon-sub">Mid to Long-term investment</span>
+                                </button>
                             </div>
+                            <input type="hidden" id="trading_horizon" name="trading_horizon" value="short">
                         </div>
                     </div>
 
@@ -191,6 +202,14 @@
                                     <div class="analyst-icon"><i class="fa-solid fa-building-columns" aria-hidden="true"></i></div>
                                     <div class="analyst-name">Fundamentals Analyst</div>
                                     <div class="analyst-desc">Financial metrics & ratios</div>
+                                </div>
+                            </label>
+                            <label class="analyst-card" id="alpha-analyst-card">
+                                <input type="checkbox" name="analysts" value="alpha" checked>
+                                <div class="analyst-content">
+                                    <div class="analyst-icon"><i class="fa-solid fa-atom" aria-hidden="true"></i></div>
+                                    <div class="analyst-name">Alpha Analyst</div>
+                                    <div class="analyst-desc">Quantitative alpha signals</div>
                                 </div>
                             </label>
                         </div>

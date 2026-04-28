@@ -8,6 +8,7 @@ from tradingagents.agents.utils.text_sanitize import sanitize_for_prompt
 
 def create_neutral_debator(llm):
     def neutral_node(state) -> dict:
+        horizon = state.get("trading_horizon", "short")
         risk_debate_state = state["risk_debate_state"]
         history         = risk_debate_state.get("history", "")
         neutral_history = risk_debate_state.get("neutral_history", "")
@@ -25,8 +26,18 @@ def create_neutral_debator(llm):
         alphagpt_context = ""
         if current_alphagpt_response:
             alphagpt_context = f"\nTín hiệu định lượng AlphaGPT: {sanitize_for_prompt(current_alphagpt_response)}"
+        
+        horizon_note = (
+            "Chiến lược đang đánh giá là LƯỚT SÓNG NGẮN HẠN (2-5 ngày). "
+            "Tập trung vào rủi ro và cơ hội trong khung thời gian này."
+        ) if horizon == "short" else (
+            "Chiến lược đang đánh giá là ĐẦU TƯ DÀI HẠN. "
+            "Quyết định cuối cùng chỉ là BUY hoặc NOT BUY. "
+            "Không đánh giá biến động ngắn hạn — chỉ rủi ro có thể phá vỡ luận điểm dài hạn."
+        )
 
         prompt = (
+            f"{horizon_note}\n\n"
             "Bạn là Neutral Analyst trong nhóm quản lý rủi ro. Vai trò của bạn là đánh giá khách quan — "
             "không có lập trường mặc định nào. Bạn chỉ ra điểm yếu của CẢ HAI bên và tổng hợp bức tranh toàn cảnh.\n\n"
 

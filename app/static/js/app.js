@@ -57,6 +57,31 @@ window.switchSection = function switchSection(name) {
     if (name === 'alpha') switchAlphaTab('library');
 };
 
+// ── Horizon ───────────────────────────────────────────────────────────────
+window._setHorizon = function(horizon, btn) {
+    document.querySelectorAll('.horizon-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('trading_horizon').value = horizon;
+
+    const shortDefault = ['market', 'social', 'news', 'alpha'];
+    const longDefault  = ['market', 'news', 'fundamentals'];
+    const targets = horizon === 'short' ? shortDefault : longDefault;
+
+    document.querySelectorAll('input[name="analysts"]').forEach(cb => {
+        const isAlpha = cb.value === 'alpha';
+        if (horizon === 'long' && isAlpha) {
+            cb.checked = false;
+            cb.disabled = true;
+            cb.closest('.analyst-card')?.classList.add('dimmed', 'disabled');
+        } else {
+            cb.disabled = false;
+            cb.checked = targets.includes(cb.value);
+            cb.closest('.analyst-card')?.classList.remove('disabled');
+            cb.closest('.analyst-card')?.classList.toggle('dimmed', !cb.checked);
+        }
+    });
+};
+
 // ── Init ──────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     // Setup tabs in progress card and review modal
@@ -111,6 +136,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initial state
     window.switchSection('home');
     loadSessions();
+
+    // Init horizon toggle
+    setTimeout(() => {
+        const defaultBtn = document.querySelector('.horizon-btn[data-horizon="short"]');
+        if (defaultBtn && typeof window._setHorizon === 'function') {
+            window._setHorizon('short', defaultBtn);
+        }
+    }, 0);
 
     // Sync hidden counter → visible home counter
     const src = document.getElementById('completed-analyses-count');

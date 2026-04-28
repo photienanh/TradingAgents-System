@@ -4,13 +4,35 @@ import json
 from tradingagents.agents.utils.agent_utils import get_stock_data, get_indicators, get_market_context
 from tradingagents.dataflows.config import get_config
 
+_HORIZON_CTX_MARKET = {
+    "short": (
+        "## KHUNG THỜI GIAN: LƯỚT SÓNG NGẮN HẠN (2-5 ngày)\n"
+        "Ưu tiên phân tích 10-30 ngày gần nhất. Tập trung vào:\n"
+        "- Momentum giá ngắn hạn (3-10 phiên gần nhất)\n"
+        "- Volume bất thường và xác nhận breakout/breakdown\n"
+        "- Vùng hỗ trợ/kháng cự gần nhất (không phải dài hạn)\n"
+        "- Tín hiệu đảo chiều ngắn hạn: RSI, MACD histogram, nến đảo chiều\n"
+        "- ATR để xác định mức stop-loss thực tế\n"
+        "Ưu tiên chỉ báo: close_10_ema, macd, macdh, rsi, atr, vwma, boll_ub, boll_lb\n"
+        "Không cần phân tích SMA 200 hay xu hướng dài hạn nhiều năm.\n"
+    ),
+    "long": (
+        "## KHUNG THỜI GIAN: ĐẦU TƯ DÀI HẠN (trung-dài hạn)\n"
+        "Ưu tiên phân tích 60-180 ngày. Tập trung vào:\n"
+        "- Xu hướng tổng thể (uptrend/downtrend/sideway)\n"
+        "- Vùng tích lũy/phân phối và breakout khỏi nền giá\n"
+        "- Golden/Death cross SMA 50/200\n"
+        "- Bối cảnh thị trường chung (VN30 breadth)\n"
+        "Ưu tiên chỉ báo: close_50_sma, close_200_sma, macd, rsi, vwma, boll\n"
+    ),
+}
 
 def create_market_analyst(llm):
 
     def market_analyst_node(state):
         current_date = state["trade_date"]
         ticker = state["company_of_interest"]
-
+        horizon_context = _HORIZON_CTX_MARKET.get(state.get("trading_horizon", "short"), _HORIZON_CTX_MARKET["short"])
         tools = [
             get_stock_data,
             get_indicators,
@@ -18,6 +40,7 @@ def create_market_analyst(llm):
         ]
 
         system_message = (
+            f"{horizon_context}\n"
             """Bạn là Market Analyst chuyên nghiệp - trợ lý giao dịch có nhiệm vụ phân tích thị trường tài chính. Nhiệm vụ DUY NHẤT của bạn là thu thập và phân tích dữ liệu thị trường kỹ thuật. Bạn KHÔNG đưa ra khuyến nghị giao dịch (BUY/SELL/HOLD).
 
 Hãy phân tích toàn diện các khía cạnh kỹ thuật của mã cổ phiếu, ví dụ như xu hướng giá, OHLCV, các chỉ báo kỹ thuật và tín hiệu của chúng, bối cảnh thị trường chung, và các rủi ro / tiềm năng cần lưu ý...

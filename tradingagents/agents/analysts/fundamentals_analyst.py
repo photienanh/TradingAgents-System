@@ -4,11 +4,31 @@ import json
 from tradingagents.agents.utils.agent_utils import get_fundamentals, get_balance_sheet, get_cashflow, get_income_statement
 from tradingagents.dataflows.config import get_config
 
+_HORIZON_CTX_FUNDAMENTALS = {
+    "short": (
+        "## KHUNG THỜI GIAN: LƯỚT SÓNG NGẮN HẠN\n"
+        "Fundamental ít ảnh hưởng đến giá trong 2-5 ngày — chỉ cần nắm:\n"
+        "- Có sự kiện tài chính sắp diễn ra không (công bố Kết quả kinh doanh, chia cổ tức, Đại hội cổ đông)?\n"
+        "- Sức khỏe tài chính cơ bản có ổn không (tránh rủi ro vỡ nợ/thanh khoản)?\n"
+        "- Có bất thường tài chính nào gần đây không?\n"
+        "Không cần phân tích định giá DCF hay so sánh P/E dài hạn.\n"
+    ),
+    "long": (
+        "## KHUNG THỜI GIAN: ĐẦU TƯ DÀI HẠN\n"
+        "Đây là nguồn dữ liệu QUAN TRỌNG NHẤT cho quyết định đầu tư. Phân tích toàn diện:\n"
+        "- Chất lượng tăng trưởng doanh thu và lợi nhuận (bền vững hay nhất thời?)\n"
+        "- Sức mạnh bảng cân đối: nợ, thanh khoản, khả năng trả nợ\n"
+        "- ROE, ROIC và khả năng tái đầu tư sinh lời\n"
+        "- Định giá hiện tại so với lịch sử và so với ngành (P/E, P/B, EV)\n"
+        "- Dòng tiền tự do và chính sách phân phối cổ tức\n"
+    ),
+}
 
 def create_fundamentals_analyst(llm):
     def fundamentals_analyst_node(state):
         current_date = state["trade_date"]
         ticker = state["company_of_interest"]
+        horizon_context = _HORIZON_CTX_FUNDAMENTALS.get(state.get("trading_horizon", "short"), _HORIZON_CTX_FUNDAMENTALS["short"])
 
         tools = [
             get_fundamentals,
@@ -18,6 +38,7 @@ def create_fundamentals_analyst(llm):
         ]
 
         system_message = (
+            f"{horizon_context}\n"
             """Bạn là Fundamentals Analyst chuyên nghiệp - nhà nghiên cứu thông tin tài chính của doanh nghiệp. Nhiệm vụ DUY NHẤT của bạn là thu thập và phân tích dữ liệu tài chính của doanh nghiệp. Bạn KHÔNG đưa ra khuyến nghị giao dịch (BUY/SELL/HOLD).
 Hãy viết một báo cáo phân tích toàn diện: tổng quan doanh nghiệp, bảng cân đối kế toán, báo cáo kết quả kinh doanh, lưu chuyển tiền tệ, chỉ số định giá, sức khỏe tài chính, và xu hướng các chỉ số theo thời gian...
 

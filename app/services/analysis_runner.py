@@ -15,7 +15,6 @@ from app.services.progress_tracker import (
     derive_realtime_step, last_msg_tool_calls, last_msg_is_clear,
     to_positive_int, TOOL_ANALYST,
 )
-from app.services.decision_fusion import extract_decision_label, fuse_decision_with_alphagpt
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +38,7 @@ async def run_trading_analysis(
     alpha_signal: Optional[Dict[str, Any]],
     session_mgr,
     save_fn: Callable,
+    trading_horizon: str = "short",
 ) -> None:
     from tradingagents.graph.trading_graph import TradingAgentsGraph
 
@@ -113,7 +113,10 @@ async def run_trading_analysis(
                         next_disp = ANALYST_DISPLAY[active_analysts[idx + 1]]
                         mb.update_agent_status(next_disp, "in_progress")
                     else:
-                        mb.update_agent_status("AlphaGPT Analyst", "in_progress")
+                        if "alpha" in analysts:
+                            mb.update_agent_status("AlphaGPT Analyst", "in_progress")
+                        else:
+                            mb.update_agent_status("Bull Researcher", "in_progress")
 
             if last_msg_is_clear(chunk):
                 for key in active_analysts:
@@ -197,6 +200,7 @@ async def run_trading_analysis(
                 ticker, analysis_date,
                 alphagpt_signal=alpha_signal,
                 progress_callback=_on_graph_progress,
+                trading_horizon=trading_horizon,
             )
         )
 
@@ -228,17 +232,11 @@ async def run_trading_analysis(
             if mb.agent_status[agent] not in {"not_selected", "completed"}:
                 mb.update_agent_status(agent, "completed")
 
-        ta_decision_label = extract_decision_label(decision)
-        fused_decision, fusion_note = fuse_decision_with_alphagpt(ta_decision_label, alpha_signal)
-
         session_mgr.update(session_id, {
             "status":               "completed",
             "current_step":         "Hoàn thành phân tích",
             "progress_percent":     100,
             "decision":             decision,
-            "decision_raw":         decision,
-            "decision_fused":       fused_decision,
-            "decision_fusion_note": fusion_note,
             "alpha_signal":         alpha_signal,
             "final_state":          final_state,
         })
