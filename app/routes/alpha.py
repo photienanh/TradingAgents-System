@@ -142,7 +142,7 @@ async def alpha_library_list() -> Dict[str, Any]:
         rows.append({
             "id":          str(a.get("id", "")),
             "description": description,
-            "expression":  str(a.get("expression", "")),
+            "formula":     str(a.get("formula", "")),
             "ic_oos":      _safe_float(a.get("ic_oos")),
             "sharpe_oos":  _safe_float(a.get("sharpe_oos")),
             "return_oos":  _safe_float(a.get("return_oos")),
@@ -254,7 +254,7 @@ async def _pipeline_sse_generator(idea: str, iterations: int):
             f"  Sharpe={f'{sh:+.3f}' if sh is not None else 'N/A'}"
             f"  Return={f'{ret*100:+.1f}%' if ret is not None else 'N/A'}"
         )
-        summary_lines.append(f"    expr: {a.get('expression','')[:80]}")
+        summary_lines.append(f"    formula: {a.get('formula','')[:80]}")
  
     for line in summary_lines:
         yield f"data: {line}\n\n"

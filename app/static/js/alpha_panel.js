@@ -32,7 +32,7 @@ export async function loadAlphaLibrary(forceReload = false) {
             const ret    = a.return_oos != null ? (a.return_oos * 100).toFixed(1) + '%' : '—';
             const icCls  = a.ic_oos != null && a.ic_oos > 0 ? 'metric-pos' : 'metric-neg';
             return `
-            <tr class="alpha-row" title="${escHtml(a.expression)}">
+            <tr class="alpha-row" title="${escHtml(a.formula)}">
                 <td class="alpha-rank">#${i + 1}</td>
                 <td class="alpha-id"><code>${escHtml(a.id)}</code></td>
                 <td class="alpha-desc">${escHtml(a.description || '—')}</td>
@@ -41,7 +41,7 @@ export async function loadAlphaLibrary(forceReload = false) {
                 <td class="alpha-metric">${ret}</td>
             </tr>
             <tr class="alpha-expr-row">
-                <td colspan="6"><code class="alpha-expr-code">${escHtml(a.expression)}</code></td>
+                <td colspan="6"><code class="alpha-expr-code">${escHtml(a.formula)}</code></td>
             </tr>`;
         }).join('');
 
