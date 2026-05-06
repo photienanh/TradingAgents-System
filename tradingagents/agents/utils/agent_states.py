@@ -4,12 +4,9 @@ Thêm quant_report vào AgentState để AlphaGPT Analyst có thể
 inject dữ liệu cho các tầng downstream.
 """
 
-from typing import Annotated, Sequence, Dict, Any
-from datetime import date, timedelta, datetime
-from typing_extensions import TypedDict, Optional
-from langchain_openai import ChatOpenAI
-from langgraph.prebuilt import ToolNode
-from langgraph.graph import END, StateGraph, START, MessagesState
+from typing import Annotated, Dict, Any
+from typing_extensions import TypedDict
+from langgraph.graph import MessagesState
 
 
 class InvestDebateState(TypedDict):
@@ -22,16 +19,18 @@ class InvestDebateState(TypedDict):
 
 
 class RiskDebateState(TypedDict):
-    risky_history:           Annotated[str, "Risky Agent's Conversation history"]
-    safe_history:            Annotated[str, "Safe Agent's Conversation history"]
-    neutral_history:         Annotated[str, "Neutral Agent's Conversation history"]
-    history:                 Annotated[str, "Conversation history"]
-    latest_speaker:          Annotated[str, "Analyst that spoke last"]
-    current_risky_response:  Annotated[str, "Latest response by the risky analyst"]
-    current_safe_response:   Annotated[str, "Latest response by the safe analyst"]
-    current_neutral_response:Annotated[str, "Latest response by the neutral analyst"]
-    judge_decision:          Annotated[str, "Judge's decision"]
-    count:                   Annotated[int, "Length of the current conversation"]
+    alphagpt_history:           Annotated[str, "AlphaGPT's Conversation history"]
+    current_alphagpt_response:  Annotated[str, "Latest response by AlphaGPT Analyst"]
+    risky_history:              Annotated[str, "Risky Agent's Conversation history"]
+    safe_history:               Annotated[str, "Safe Agent's Conversation history"]
+    neutral_history:            Annotated[str, "Neutral Agent's Conversation history"]
+    history:                    Annotated[str, "Conversation history"]
+    latest_speaker:             Annotated[str, "Analyst that spoke last"]
+    current_risky_response:     Annotated[str, "Latest response by the risky analyst"]
+    current_safe_response:      Annotated[str, "Latest response by the safe analyst"]
+    current_neutral_response:   Annotated[str, "Latest response by the neutral analyst"]
+    judge_decision:             Annotated[str, "Judge's decision"]
+    count:                      Annotated[int, "Length of the current conversation"]
 
 
 class AgentState(MessagesState):

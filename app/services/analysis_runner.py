@@ -46,8 +46,6 @@ async def run_trading_analysis(
     session_mgr.update(session_id, {
         "message_buffer":   mb,
         "status":           "running",
-        "current_step":     "Đang khởi tạo đồ thị phân tích",
-        "progress_percent": 10,
         "cancel_requested": False,
     })
     save_fn()
@@ -79,16 +77,6 @@ async def run_trading_analysis(
 
             if session_mgr.get_field(session_id, "cancel_requested"):
                 raise asyncio.CancelledError("Analysis cancelled by user")
-
-            # Progress bar
-            info = derive_realtime_step(chunk, max_debate_rounds, max_risk_rounds, analysts)
-            if info is not None:
-                step_text, step_pct = info
-                prev_pct = int(session_mgr.get_field(session_id, "progress_percent") or 0)
-                session_mgr.update(session_id, {
-                    "current_step":     step_text,
-                    "progress_percent": max(prev_pct, step_pct),
-                })
 
             # Tool call → mark analyst in_progress
             tool_names = last_msg_tool_calls(chunk)
@@ -234,8 +222,6 @@ async def run_trading_analysis(
 
         session_mgr.update(session_id, {
             "status":               "completed",
-            "current_step":         "Hoàn thành phân tích",
-            "progress_percent":     100,
             "decision":             decision,
             "alpha_signal":         alpha_signal,
             "final_state":          final_state,
@@ -245,12 +231,9 @@ async def run_trading_analysis(
     except asyncio.CancelledError as e:
         session_mgr.update(session_id, {
             "status":        "cancelled",
-            "current_step":  "Đã hủy phân tích theo yêu cầu",
             "error":         str(e),
             "error_details": None,
         })
-        if not session_mgr.get_field(session_id, "progress_percent"):
-            session_mgr.set_field(session_id, "progress_percent", 0)
         save_fn()
 
     except Exception as e:
@@ -259,11 +242,8 @@ async def run_trading_analysis(
         logger.error("Lỗi phân tích %s: %s", session_id, error_details)
         session_mgr.update(session_id, {
             "status":        "error",
-            "current_step":  "Phân tích thất bại",
             "error":         str(e),
             "error_details": error_details,
         })
-        if not session_mgr.get_field(session_id, "progress_percent"):
-            session_mgr.set_field(session_id, "progress_percent", 0)
         mb.add_message("Error", f"Analysis failed: {str(e)}")
         save_fn()

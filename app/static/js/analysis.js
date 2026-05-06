@@ -146,16 +146,6 @@ async function updateProgressUI(data) {
     statusBadge.innerHTML = `<i class="${meta.icon}" aria-hidden="true"></i> ${meta.label}`;
     statusBadge.className = `status-badge ${data.status}`;
 
-    const fallback = { completed: 'Hoàn thành phân tích', cancelled: 'Đã hủy phân tích theo yêu cầu', error: 'Phân tích thất bại' }[data.status] || 'Đang xử lý...';
-    const step    = String(data.current_step || fallback).trim();
-    const percent = Number.isFinite(data.progress_percent) ? Math.max(0, Math.min(100, data.progress_percent)) : (data.status === 'completed' ? 100 : 0);
-
-    const stepEl = document.getElementById('current-step');
-    if (stepEl) stepEl.textContent = `${step} (${percent}%)`;
-
-    const fill = document.getElementById('analysis-progress-fill');
-    if (fill) fill.style.width = `${percent}%`;
-
     const stopBtn = document.getElementById('stop-analysis-btn');
     if (stopBtn) {
         const canStop = ['running', 'initializing'].includes(data.status);
@@ -223,7 +213,6 @@ export function startNewAnalysis() {
     // Clear displays
     const fields = {
         'session-id':     '-', 'current-ticker':  '-',
-        'current-step':   'Đang chờ bắt đầu phân tích...',
         'current-report': 'Waiting for analysis to start...',
         'final-report':   '', 'final-decision':   '',
     };
@@ -233,8 +222,6 @@ export function startNewAnalysis() {
     }
     const statusEl = document.getElementById('current-status');
     if (statusEl) { statusEl.textContent = ''; statusEl.className = 'status-badge'; }
-    const fill = document.getElementById('analysis-progress-fill');
-    if (fill) fill.style.width = '0%';
     const agentEl = document.getElementById('agent-status');
     if (agentEl) agentEl.innerHTML = '';
 }

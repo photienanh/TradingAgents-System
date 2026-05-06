@@ -1,4 +1,8 @@
+import logging
 from typing import Annotated, Optional
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 # Import from vendor-specific modules
 from .y_finance import (
@@ -219,7 +223,7 @@ def route_to_vendor(method: str, *args, **kwargs):
     # Debug: Print fallback ordering
     primary_str = " -> ".join(primary_vendors)
     fallback_str = " -> ".join(fallback_vendors)
-    print(f"DEBUG: {method} - Primary: [{primary_str}] | Full fallback order: [{fallback_str}]")
+    logger.debug(f"{method} - Primary: [{primary_str}] | Full fallback order: [{fallback_str}]")
 
     # Track results and execution state
     results = []
@@ -230,7 +234,7 @@ def route_to_vendor(method: str, *args, **kwargs):
     for vendor in fallback_vendors:
         if vendor not in VENDOR_METHODS[method]:
             if vendor in primary_vendors:
-                print(f"INFO: Vendor '{vendor}' not supported for method '{method}', falling back to next vendor")
+                logger.info(f"Vendor '{vendor}' not supported for method '{method}', falling back to next vendor")
             continue
 
         vendor_impl = VENDOR_METHODS[method][vendor]
@@ -243,12 +247,12 @@ def route_to_vendor(method: str, *args, **kwargs):
 
         # Debug: Print current attempt
         vendor_type = "PRIMARY" if is_primary_vendor else "FALLBACK"
-        print(f"DEBUG: Attempting {vendor_type} vendor '{vendor}' for {method} (attempt #{vendor_attempt_count})")
+        logger.debug(f"Attempting {vendor_type} vendor '{vendor}' for {method} (attempt #{vendor_attempt_count})")
 
         # Handle list of methods for a vendor
         if isinstance(vendor_impl, list):
             vendor_methods = [(impl, vendor) for impl in vendor_impl]
-            print(f"DEBUG: Vendor '{vendor}' has multiple implementations: {len(vendor_methods)} functions")
+            logger.debug(f"Vendor '{vendor}' has multiple implementations: {len(vendor_methods)} functions")
         else:
             vendor_methods = [(vendor_impl, vendor)]
 
@@ -256,25 +260,25 @@ def route_to_vendor(method: str, *args, **kwargs):
         vendor_results = []
         for impl_func, vendor_name in vendor_methods:
             try:
-                print(f"DEBUG: Calling {impl_func.__name__} from vendor '{vendor_name}'...")
+                logger.debug(f"Calling {impl_func.__name__} from vendor '{vendor_name}'...")
                 result = impl_func(*args, **kwargs)
                 if result is None:
-                    print(f"FAILED: {impl_func.__name__} from vendor '{vendor_name}' returned None")
+                    logger.error(f"{impl_func.__name__} from vendor '{vendor_name}' returned None")
                     continue
                 if isinstance(result, str) and not result.strip():
-                    print(f"FAILED: {impl_func.__name__} from vendor '{vendor_name}' returned empty string")
+                    logger.error(f"{impl_func.__name__} from vendor '{vendor_name}' returned empty string")
                     continue
                 if _is_error_result(result):
-                    print(
-                        f"FAILED: {impl_func.__name__} from vendor '{vendor_name}' returned error-like result: {str(result)[:220]}"
+                    logger.error(
+                        f"{impl_func.__name__} from vendor '{vendor_name}' returned error-like result: {str(result)[:220]}"
                     )
                     continue
                 vendor_results.append(result)
-                print(f"SUCCESS: {impl_func.__name__} from vendor '{vendor_name}' completed successfully")
+                logger.info(f"{impl_func.__name__} from vendor '{vendor_name}' completed successfully")
                     
             except Exception as e:
                 # Log error but continue with other implementations
-                print(f"FAILED: {impl_func.__name__} from vendor '{vendor_name}' failed: {e}")
+                logger.error(f"{impl_func.__name__} from vendor '{vendor_name}' failed: {e}")
                 continue
 
         # Add this vendor's results
@@ -282,31 +286,31 @@ def route_to_vendor(method: str, *args, **kwargs):
             results.extend(vendor_results)
             successful_vendor = vendor
             result_summary = f"Got {len(vendor_results)} result(s)"
-            print(f"SUCCESS: Vendor '{vendor}' succeeded - {result_summary}")
+            logger.info(f"Vendor '{vendor}' succeeded - {result_summary}")
 
             # For news, we want strict fallback behavior:
             # try the next vendor only when current one fails/empty, and stop at first success.
             if method == "get_news":
-                print(f"DEBUG: Stopping after successful vendor '{vendor}' for get_news")
+                logger.debug(f"Stopping after successful vendor '{vendor}' for get_news")
                 break
 
             # Stopping logic: Stop after first successful vendor for single-vendor configs.
             # Multiple vendor configs (comma-separated) may want to collect from multiple sources.
             if len(primary_vendors) == 1:
-                print(f"DEBUG: Stopping after successful vendor '{vendor}' (single-vendor config)")
+                logger.debug(f"Stopping after successful vendor '{vendor}' (single-vendor config)")
                 break
         else:
-            print(f"FAILED: Vendor '{vendor}' produced no results")
+            logger.error(f"Vendor '{vendor}' produced no results")
 
     # Final result summary
     if not results:
-        print(f"FAILURE: All {vendor_attempt_count} vendor attempts failed for method '{method}'")
+        logger.error(f"All {vendor_attempt_count} vendor attempts failed for method '{method}'")
         if primary_vendors and not any_primary_vendor_attempted:
-            print("INFO: None of the configured primary vendors were supported; only fallbacks were attempted.")
+            logger.info("None of the configured primary vendors were supported; only fallbacks were attempted.")
         raise RuntimeError(f"All vendor implementations failed for method '{method}'")
     else:
-        print(
-            f"FINAL: Method '{method}' completed with {len(results)} result(s) "
+        logger.info(
+            f"Method '{method}' completed with {len(results)} result(s) "
             f"from {vendor_attempt_count} vendor attempt(s); successful vendor: {successful_vendor}"
         )
 
@@ -321,6 +325,6 @@ if __name__ == "__main__":
     # Example usage
     try:
         stock_data = route_to_vendor("get_cashflow", symbol="HPG", period="quater")
-        print(stock_data)
+        logger.info(f"Stock data: {stock_data}")
     except Exception as e:
-        print(f"Error retrieving stock data: {e}")
+        logger.error(f"Error retrieving stock data: {e}")

@@ -1,8 +1,6 @@
 """
 tradingagents/agents/risk_mgmt/neutral_debator.py
 """
-import json
-
 from tradingagents.agents.utils.text_sanitize import sanitize_for_prompt
 
 

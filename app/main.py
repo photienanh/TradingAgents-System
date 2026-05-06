@@ -126,8 +126,6 @@ class AnalysisResponse(BaseModel):
 class AnalysisStatus(BaseModel):
     session_id: str
     status: str
-    current_step: Optional[str] = None
-    progress_percent: Optional[int] = None
     current_agent: Optional[str] = None
     agent_status: Dict[str, str]
     current_report: Optional[str] = None
@@ -175,8 +173,6 @@ async def start_analysis(request: AnalysisRequest, background_tasks: BackgroundT
             "analysts":         selected_analysts,
             "alpha_signal":     alpha_signal,
             "status":           "initializing",
-            "current_step":     "Đang tạo phiên phân tích",
-            "progress_percent": 5,
             "cancel_requested": False,
             "created_at":       datetime.datetime.now().isoformat(),
         })
@@ -211,8 +207,6 @@ async def get_analysis_status(session_id: str):
         return AnalysisStatus(
             session_id=session_id,
             status=session["status"],
-            current_step=session.get("current_step"),
-            progress_percent=session.get("progress_percent"),
             current_agent=mb.current_agent,
             agent_status=mb.agent_status,
             current_report=mb.current_report,
@@ -234,8 +228,6 @@ async def get_analysis_status(session_id: str):
     return AnalysisStatus(
         session_id=session_id,
         status=session["status"],
-        current_step=session.get("current_step"),
-        progress_percent=session.get("progress_percent"),
         current_agent=session.get("current_agent"),
         agent_status=loaded_agent_status or {},
         current_report=session.get("current_report") or rebuilt_current,
@@ -281,7 +273,7 @@ async def cancel_session(session_id: str):
     status = str(session.get("status", ""))
     if status in {"completed", "error", "cancelled"}:
         return {"message": f"Session is already {status}", "status": status}
-    session_mgr.update(session_id, {"cancel_requested": True, "current_step": "Đang hủy phân tích..."})
+    session_mgr.update(session_id, {"cancel_requested": True})
     _save_sessions_to_disk()
     return {"message": "Cancellation requested", "status": session.get("status")}
 

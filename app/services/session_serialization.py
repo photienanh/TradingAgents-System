@@ -275,8 +275,6 @@ def build_persistable_session(session_data: Dict[str, Any]) -> Dict[str, Any]:
         "analysts":             to_jsonable(session_data.get("analysts")),
         "alpha_signal":         to_jsonable(session_data.get("alpha_signal")),
         "status":               to_jsonable(session_data.get("status")),
-        "current_step":         to_jsonable(session_data.get("current_step")),
-        "progress_percent":     to_jsonable(session_data.get("progress_percent")),
         "cancel_requested":     to_jsonable(session_data.get("cancel_requested")),
         "created_at":           to_jsonable(session_data.get("created_at")),
         "decision":             to_jsonable(session_data.get("decision")),
