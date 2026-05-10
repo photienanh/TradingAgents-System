@@ -1,15 +1,31 @@
-typing-extensions
+# LLM & Agents
+openai
 langchain-openai
-pandas
-yfinance
-feedparser
-stockstats
 langgraph
-chromadb
-setuptools
+
+# Data
+pandas
+numpy
+yfinance
+vnstock
+stockstats
+feedparser
 requests
+beautifulsoup4
+python-dateutil
+
+# Vector search / RAG
+sentence-transformers
+faiss-cpu
+
+# Memory
+chromadb
+
+# Web app
 fastapi
 uvicorn
 jinja2
 python-multipart
-vnstock
+
+# Utils
+python-dotenv
