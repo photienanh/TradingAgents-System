@@ -153,7 +153,7 @@ def load_multi_stock(data_dir: str, min_history_days: int = 30) -> Tuple[pd.Data
     # forward return per ticker
     fwd_parts = []
     for ticker, df_t in all_dfs.items():
-        fwd = df_t["close"].pct_change(1).shift(-1).rename(ticker)
+        fwd = df_t["close"].pct_change(2).shift(-2).rename(ticker)
         fwd_parts.append(fwd)
 
     fwd_ret_multi = pd.concat(fwd_parts, axis=1)
@@ -166,6 +166,7 @@ def load_single_stock(path: str, min_history_days: int = 30) -> Tuple[Optional[p
     """
     Backward compat: load một file CSV cho single ticker.
     Trả về (df, fwd_ret).
+    Trả về T+2 forward return (2-day return).
     """
     raw = pd.read_csv(path)
     raw.columns = [c.lower() for c in raw.columns]
@@ -178,7 +179,7 @@ def load_single_stock(path: str, min_history_days: int = 30) -> Tuple[Optional[p
         raw = raw[raw["ticker"] == ticker].drop(columns=["ticker"])
 
     df = _load_single_ticker(raw)
-    fwd_ret = df["close"].pct_change(1).shift(-1).rename("fwd_1d")
+    fwd_ret = df["close"].pct_change(2).shift(-2).rename("fwd_2d")
     return df, fwd_ret
 
 

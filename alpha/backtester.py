@@ -6,18 +6,22 @@ Quá trình tính return:
   1. Mỗi ngày t trong OOS period:
      - Long leg  = các ticker có signal[t] > median → equal weight
      - Short leg = các ticker có signal[t] <= median → equal weight
-     - daily_pnl[t] = mean(long leg returns[t]) - mean(short leg returns[t])
-       = long-short spread return (dollar-neutral, equal-weight)
+     - daily_pnl[t] = mean(long leg returns[t+2]) - mean(short leg returns[t+2])
+       = long-short spread return T+2 (dollar-neutral, equal-weight)
 
   2. Annualized return = geometric:
      total_return = prod(1 + daily_pnl) - 1
      ann_return   = (1 + total_return)^(252/n_days) - 1
 
-  Ý nghĩa: spread return chưa trừ transaction cost, chưa tính leverage.
+  Ý nghĩa: spread return sau T+2, trừ transaction cost, trừ 0.1% short tax.
 
 Sharpe:
   Sharpe = mean(daily_pnl) / std(daily_pnl) * sqrt(252)
-  Đây là Sharpe của long-short spread portfolio.
+  Đây là Sharpe của long-short spread portfolio T+2 + costs.
+  
+Costs:
+  - Turnover cost: 0.15% per unit turnover (15bps mỗi chiều)
+  - Short tax: 0.1% (VN transaction tax)
 """
 import numpy as np
 import pandas as pd
@@ -299,12 +303,14 @@ def _build_daily_pnl(
          → median ticker: position =  0.0  (không giao dịch)
          → bottom ticker: position = -1.0  (bán nhiều nhất)
       3. Normalize: pos = pos / sum(|pos|)  → sum(|pos|) = 1
-      4. daily_pnl[t] = sum(pos_i * fwd_ret_i)
+      4. gross_pnl[t] = sum(pos_i * fwd_ret_i)
+      5. net_pnl[t] = gross_pnl[t] - turnover_cost - short_tax
 
     Tính chất:
       - Dollar-neutral: sum(pos) = 0
       - Signal mạnh → position lớn, signal yếu → position nhỏ
       - Liên tục, không bị mất thông tin như binary +1/-1
+      - Short tax: 0.1% trên magnitude short positions
     """
     common_tickers = signal_all.columns.intersection(forward_return.columns)
     sig = signal_all[common_tickers]
@@ -339,7 +345,10 @@ def _build_daily_pnl(
         else:
             turnover = float(pos.abs().sum()) / 2
 
-        net_pnl = gross_pnl - cost_per_turnover * turnover
+        # Tax on short positions (0.1% = 0.001)
+        short_tax = float((pos[pos < 0].abs().sum()) * 0.001)
+
+        net_pnl = gross_pnl - cost_per_turnover * turnover - short_tax
         daily_pnl.append(net_pnl)
         prev_pos = pos
 
@@ -355,9 +364,13 @@ def compute_sharpe_oos(
     test_ratio: float = None,
 ) -> float:
     """
-    Sharpe sau khi trừ transaction cost ước tính.
-    cost_per_turnover: chi phí mỗi đơn vị turnover (mặc định 0.15% = 15bps mỗi chiều).
-    Công thức: net_pnl[t] = gross_pnl[t] - cost_per_turnover * turnover[t]
+    Sharpe sau khi trừ transaction cost + 0.1% short tax.
+    
+    COSTS: 
+      - Turnover cost: cost_per_turnover * turnover (mặc định 0.15% = 15bps mỗi chiều)
+      - Short tax: 0.1% trên magnitude short positions
+    
+    Công thức: net_pnl[t] = gross_pnl[t] - cost_per_turnover * turnover[t] - short_tax[t]
     """
     if test_ratio is None:
         test_ratio = DEFAULT_CONFIG.test_ratio
