@@ -24,7 +24,7 @@ SECTION_TITLES: Dict[str, str] = {
     "sentiment_report":      "Phân tích tâm lý xã hội",
     "news_report":           "Phân tích tin tức",
     "fundamentals_report":   "Phân tích tài chính doanh nghiệp",
-    "quant_report":          "Phân tích định lượng (AlphaGPT)",
+    "quant_report":          "Phân tích định lượng (Alpha)",
     "investment_plan":       "Quyết định nhóm nghiên cứu",
     "trader_investment_plan":"Kế hoạch nhóm giao dịch",
     "final_trade_decision":  "Quyết định cuối cùng",
@@ -48,7 +48,7 @@ DEFAULT_AGENT_NAMES: List[str] = [
     "Social Analyst",
     "News Analyst",
     "Fundamentals Analyst",
-    "AlphaGPT Analyst",
+    "Alpha Analyst",
 
     # Researcher team
     "Bull Researcher",
@@ -71,7 +71,7 @@ SECTION_TO_AGENT: Dict[str, str] = {
     "sentiment_report":      "Social Analyst",
     "news_report":           "News Analyst",
     "fundamentals_report":   "Fundamentals Analyst",
-    "quant_report":          "AlphaGPT Analyst",
+    "quant_report":          "Alpha Analyst",
     "investment_plan":       "Research Manager",
     "trader_investment_plan":"Trader",
     "final_trade_decision":  "Portfolio Manager",

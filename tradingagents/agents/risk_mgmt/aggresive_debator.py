@@ -13,17 +13,17 @@ def create_risky_debator(llm):
 
         current_safe_response    = risk_debate_state.get("current_safe_response", "")
         current_neutral_response = risk_debate_state.get("current_neutral_response", "")
-        current_alphagpt_response = risk_debate_state.get("current_alphagpt_response", "")
 
         market_research_report = state["market_report"]
         sentiment_report       = state["sentiment_report"]
         news_report            = state["news_report"]
         fundamentals_report    = state["fundamentals_report"]
+        quant_report           = state["quant_report"]
         trader_decision        = state["trader_investment_plan"]
 
-        alphagpt_context = ""
-        if current_alphagpt_response:
-            alphagpt_context = f"\nTín hiệu định lượng AlphaGPT: {sanitize_for_prompt(current_alphagpt_response)}"
+        alpha_context = ""
+        if quant_report:
+            alpha_context = f"\nTín hiệu định lượng Alpha: {sanitize_for_prompt(quant_report)}"
         
         horizon_note = (
             "Chiến lược đang đánh giá là LƯỚT SÓNG NGẮN HẠN (2-5 ngày). "
@@ -44,13 +44,13 @@ def create_risky_debator(llm):
             "- Upside potential cụ thể dựa trên dữ liệu\n"
             "- Điểm yếu trong lập luận quá thận trọng của Safe Analyst\n"
             "- Chi phí cơ hội của việc không hành động\n"
-            "- Nếu tín hiệu AlphaGPT ủng hộ long, đây là bằng chứng định lượng bổ sung\n\n"
+            "- Nếu tín hiệu Alpha ủng hộ long, đây là bằng chứng định lượng bổ sung\n\n"
 
             "**Lưu ý quan trọng**: Vai trò của bạn không phải lúc nào cũng là ủng hộ BUY. "
             "Nếu kế hoạch của Trader là SELL, bạn bảo vệ lý do SELL đó bằng lập luận upside của bear case.\n\n"
 
             f"Kế hoạch của Trader:\n{sanitize_for_prompt(trader_decision)}\n"
-            f"{sanitize_for_prompt(alphagpt_context)}\n\n"
+            f"{sanitize_for_prompt(alpha_context)}\n\n"
 
             f"Dữ liệu thị trường: {sanitize_for_prompt(market_research_report)}\n"
             f"Tâm lý: {sanitize_for_prompt(sentiment_report)}\n"
@@ -73,12 +73,10 @@ def create_risky_debator(llm):
             "risky_history":            risky_history + "\n" + argument,
             "safe_history":             risk_debate_state.get("safe_history", ""),
             "neutral_history":          risk_debate_state.get("neutral_history", ""),
-            "alphagpt_history":         risk_debate_state.get("alphagpt_history", ""),
             "latest_speaker":           "Risky",
             "current_risky_response":   argument,
             "current_safe_response":    risk_debate_state.get("current_safe_response", ""),
             "current_neutral_response": risk_debate_state.get("current_neutral_response", ""),
-            "current_alphagpt_response": current_alphagpt_response,
             "count":                    risk_debate_state["count"] + 1,
         }
         return {"risk_debate_state": new_risk_debate_state}

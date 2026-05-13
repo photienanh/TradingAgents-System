@@ -23,6 +23,37 @@ def _compute_rsi(close: pd.Series, period: int = 14) -> pd.Series:
     return 100 - (100 / (1 + rs))
 
 
+def _compute_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
+    prev_close = close.shift(1)
+    tr = pd.concat([
+        high - low,
+        (high - prev_close).abs(),
+        (low - prev_close).abs(),
+    ], axis=1).max(axis=1)
+    return tr.rolling(period).mean()
+
+
+def _compute_vwma(close: pd.Series, volume: pd.Series, window: int = 20) -> pd.Series:
+    pv = close * volume
+    return pv.rolling(window).sum() / volume.rolling(window).sum().replace(0, np.nan)
+
+
+def _compute_mfi(high: pd.Series, low: pd.Series, close: pd.Series,
+                 volume: pd.Series, period: int = 14) -> pd.Series:
+    typical_price = (high + low + close) / 3
+    raw_money_flow = typical_price * volume
+    tp_diff = typical_price.diff()
+
+    positive_flow = raw_money_flow.where(tp_diff > 0, 0.0)
+    negative_flow = raw_money_flow.where(tp_diff < 0, 0.0)
+
+    pos_sum = positive_flow.rolling(period).sum()
+    neg_sum = negative_flow.rolling(period).sum().abs()
+
+    mfr = pos_sum / (neg_sum + 1e-9)
+    return 100 - (100 / (1 + mfr))
+
+
 def add_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """
     Tính tất cả technical indicators cho một ticker (single-ticker DataFrame).
@@ -34,13 +65,15 @@ def add_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
     low    = df["low"]
     volume = df["volume"]
 
-    # vwap (xấp xỉ daily): (high + low + close) / 3
+    # vwap (xấp xỉ daily)
     df["vwap"] = (high + low + close) / 3
 
     # Moving averages
-    df["sma_5"]  = close.rolling(5).mean()
-    df["sma_20"] = close.rolling(20).mean()
-    df["ema_10"] = close.ewm(span=10, adjust=False).mean()
+    df["sma_5"]   = close.rolling(5).mean()
+    df["sma_20"]  = close.rolling(20).mean()
+    df["sma_50"]  = close.rolling(50).mean()
+    df["sma_200"] = close.rolling(200).mean()
+    df["ema_10"]  = close.ewm(span=10, adjust=False).mean()
 
     # Momentum
     df["momentum_3"]  = close.diff(3)
@@ -54,6 +87,7 @@ def add_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
     ema_26 = close.ewm(span=26, adjust=False).mean()
     df["macd"]        = ema_12 - ema_26
     df["macd_signal"] = df["macd"].ewm(span=9, adjust=False).mean()
+    df["macd_hist"]   = df["macd"] - df["macd_signal"]
 
     # Bollinger Bands
     std20 = close.rolling(20).std()
@@ -65,11 +99,20 @@ def add_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
     direction = np.sign(close.diff())
     df["obv"] = (direction * volume).fillna(0).cumsum()
 
-    # adv20 — average dollar volume 20 ngày
+    # adv20
     df["adv20"] = (close * volume).rolling(20).mean()
 
     # returns
     df["returns"] = close.pct_change(1)
+
+    # ATR
+    df["atr_14"] = _compute_atr(high, low, close, 14)
+
+    # VWMA
+    df["vwma_20"] = _compute_vwma(close, volume, 20)
+
+    # MFI
+    df["mfi_14"] = _compute_mfi(high, low, close, volume, 14)
 
     return df
 
@@ -82,7 +125,6 @@ def _load_single_ticker(raw: pd.DataFrame) -> pd.DataFrame:
     raw["time"] = pd.to_datetime(raw["time"]).dt.normalize()
     raw = raw.sort_values("time").set_index("time")
 
-    # Chỉ giữ cột OHLCV + industry
     keep_cols = ["open", "high", "low", "close", "volume"]
     if "industry" in raw.columns:
         keep_cols.append("industry")
@@ -96,10 +138,9 @@ def load_multi_stock(data_dir: str, min_history_days: int = 30) -> Tuple[pd.Data
     """
     Đọc toàn bộ CSV trong data_dir (long format).
     Trả về:
-      - df_panel: DataFrame MultiIndex (date, ticker) với tất cả indicators
-      - signal_df: pivot table — index=dates, columns=tickers (dùng cho eval)
+      - df_panel: DataFrame MultiIndex (date, ticker)
+      - signal_df: pivot table — index=dates, columns=tickers
       - fwd_ret_multi: DataFrame index=dates, columns=tickers (forward returns)
-    Ticker chỉ được đưa vào universe nếu có ít nhất min_history_days lịch sử.
     """
     csv_files = glob.glob(os.path.join(data_dir, "*.csv"))
     if not csv_files:
@@ -112,7 +153,6 @@ def load_multi_stock(data_dir: str, min_history_days: int = 30) -> Tuple[pd.Data
             raw = pd.read_csv(fpath)
             raw.columns = [c.lower() for c in raw.columns]
 
-            # Long format: có cột ticker
             if "ticker" in raw.columns:
                 for ticker, group in raw.groupby("ticker"):
                     try:
@@ -122,7 +162,6 @@ def load_multi_stock(data_dir: str, min_history_days: int = 30) -> Tuple[pd.Data
                     except Exception as e:
                         log.warning(f"  Skip ticker {ticker}: {e}")
             else:
-                # Mỗi file là một ticker — dùng tên file làm ticker
                 ticker = os.path.splitext(os.path.basename(fpath))[0].upper()
                 try:
                     df_t = _load_single_ticker(raw)
@@ -137,7 +176,6 @@ def load_multi_stock(data_dir: str, min_history_days: int = 30) -> Tuple[pd.Data
         log.error("[DataLoader] Không load được ticker nào")
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-    # Build panel: concat theo tickers
     panels = []
     for ticker, df_t in all_dfs.items():
         df_t = df_t.copy()
@@ -150,7 +188,6 @@ def load_multi_stock(data_dir: str, min_history_days: int = 30) -> Tuple[pd.Data
     df_panel = df_panel.reorder_levels(["date", "ticker"])
     df_panel = df_panel.sort_index()
 
-    # forward return per ticker
     fwd_parts = []
     for ticker, df_t in all_dfs.items():
         fwd = df_t["close"].pct_change(2).shift(-2).rename(ticker)
@@ -163,18 +200,13 @@ def load_multi_stock(data_dir: str, min_history_days: int = 30) -> Tuple[pd.Data
 
 
 def load_single_stock(path: str, min_history_days: int = 30) -> Tuple[Optional[pd.DataFrame], Optional[pd.Series]]:
-    """
-    Backward compat: load một file CSV cho single ticker.
-    Trả về (df, fwd_ret).
-    Trả về T+2 forward return (2-day return).
-    """
+    """Backward compat: load một file CSV cho single ticker."""
     raw = pd.read_csv(path)
     raw.columns = [c.lower() for c in raw.columns]
     if "volumn" in raw.columns and "volume" not in raw.columns:
         raw = raw.rename(columns={"volumn": "volume"})
 
     if "ticker" in raw.columns:
-        # Lấy ticker đầu tiên
         ticker = raw["ticker"].iloc[0]
         raw = raw[raw["ticker"] == ticker].drop(columns=["ticker"])
 

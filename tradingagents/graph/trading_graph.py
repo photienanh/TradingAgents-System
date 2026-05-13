@@ -17,7 +17,6 @@ from langchain_core.runnables import Runnable as _LCRunnable
 
 from tradingagents.agents import *
 from tradingagents.default_config import DEFAULT_CONFIG
-from tradingagents.agents.utils.memory import FinancialSituationMemory
 from tradingagents.agents.utils.agent_states import AgentState, InvestDebateState, RiskDebateState
 from tradingagents.dataflows.config import set_config
 from tradingagents.agents.utils.agent_utils import (
@@ -30,7 +29,6 @@ from tradingagents.agents.utils.agent_utils import (
 from .conditional_logic import ConditionalLogic
 from .setup import GraphSetup
 from .propagation import Propagator
-from .reflection import Reflector
 from .signal_processing import SignalProcessor
 
 
@@ -89,11 +87,6 @@ class TradingAgentsGraph:
         self.config = config or DEFAULT_CONFIG
         set_config(self.config)
 
-        os.makedirs(
-            os.path.join(self.config["project_dir"], "dataflows/data_cache"),
-            exist_ok=True,
-        )
-
         self.deep_thinking_llm = self._build_llm_with_fallback(
             model_name=self.config["deep_think_llm"],
             label="deep_think_llm",
@@ -103,11 +96,6 @@ class TradingAgentsGraph:
             label="quick_think_llm",
         )
 
-        self.bull_memory         = FinancialSituationMemory("bull_memory",         self.config)
-        self.bear_memory         = FinancialSituationMemory("bear_memory",         self.config)
-        self.trader_memory       = FinancialSituationMemory("trader_memory",       self.config)
-        self.invest_judge_memory = FinancialSituationMemory("invest_judge_memory", self.config)
-        self.risk_manager_memory = FinancialSituationMemory("risk_manager_memory", self.config)
 
         self.tool_nodes = self._create_tool_nodes()
         self.conditional_logic = ConditionalLogic(
@@ -119,16 +107,10 @@ class TradingAgentsGraph:
             self.quick_thinking_llm,
             self.deep_thinking_llm,
             self.tool_nodes,
-            self.bull_memory,
-            self.bear_memory,
-            self.trader_memory,
-            self.invest_judge_memory,
-            self.risk_manager_memory,
             self.conditional_logic,
         )
 
         self.propagator      = Propagator()
-        self.reflector       = Reflector(self.quick_thinking_llm)
         self.signal_processor = SignalProcessor(self.quick_thinking_llm)
 
         self.curr_state       = None
@@ -138,16 +120,16 @@ class TradingAgentsGraph:
         self.graph = self.graph_setup.setup_graph(selected_analysts)
 
     @staticmethod
-    def _normalize_alphagpt_signal(alphagpt_signal: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    def _normalize_alpha_signal(alpha_signal: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Chuẩn hoá alpha signal cho graph state:
         - Dùng strict ic_oos (không fallback từ avg_ic)
         - Chuẩn hoá kiểu dữ liệu số nếu có
         """
-        if not isinstance(alphagpt_signal, dict):
+        if not isinstance(alpha_signal, dict):
             return {}
 
-        normalized = dict(alphagpt_signal)
+        normalized = dict(alpha_signal)
 
         def _to_float(v: Any) -> Optional[float]:
             try:
@@ -201,16 +183,13 @@ class TradingAgentsGraph:
         self,
         company_name,
         trade_date,
-        alphagpt_signal: Optional[Dict[str, Any]] = None,
         progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
         trading_horizon: str = "short",
     ):
         self.ticker = company_name
-        normalized_alpha_signal = self._normalize_alphagpt_signal(alphagpt_signal)
         init_agent_state = self.propagator.create_initial_state(
             company_name,
             trade_date,
-            alphagpt_signal=normalized_alpha_signal,
             trading_horizon=trading_horizon,
         )
         args = self.propagator.get_graph_args()
@@ -267,13 +246,6 @@ class TradingAgentsGraph:
         directory.mkdir(parents=True, exist_ok=True)
         with open(f"eval_results/{self.ticker}/full_states_log_{trade_date}.json", "w", encoding="utf-8") as f:
             json.dump(self.log_states_dict, f, indent=4, ensure_ascii=False)
-
-    def reflect_and_remember(self, returns_losses):
-        self.reflector.reflect_bull_researcher(self.curr_state, returns_losses, self.bull_memory)
-        self.reflector.reflect_bear_researcher(self.curr_state, returns_losses, self.bear_memory)
-        self.reflector.reflect_trader(self.curr_state, returns_losses, self.trader_memory)
-        self.reflector.reflect_invest_judge(self.curr_state, returns_losses, self.invest_judge_memory)
-        self.reflector.reflect_risk_manager(self.curr_state, returns_losses, self.risk_manager_memory)
 
     def process_signal(self, full_signal):
         return self.signal_processor.process_signal(full_signal)

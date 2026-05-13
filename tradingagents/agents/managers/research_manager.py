@@ -1,25 +1,15 @@
 from tradingagents.agents.utils.text_sanitize import sanitize_for_prompt
 
 
-def create_research_manager(llm, memory):
+def create_research_manager(llm):
     def research_manager_node(state) -> dict:
         horizon    = state.get("trading_horizon", "short")
         ticker     = state.get("company_of_interest", "N/A")
         trade_date = state.get("trade_date", "N/A")
 
-        history                = state["investment_debate_state"].get("history", "")
-        market_research_report = state["market_report"]
-        sentiment_report       = state["sentiment_report"]
-        news_report            = state["news_report"]
-        fundamentals_report    = state["fundamentals_report"]
+        history                 = state["investment_debate_state"].get("history", "")
         investment_debate_state = state["investment_debate_state"]
 
-        curr_situation = (
-            f"{market_research_report}\n\n{sentiment_report}\n\n"
-            f"{news_report}\n\n{fundamentals_report}"
-        )
-        past_memories = memory.get_memories(curr_situation, n_matches=2)
-        past_memory_str = "".join(rec["recommendation"] + "\n\n" for rec in past_memories)
 
         if horizon == "short":
             decision_criteria = (
@@ -82,8 +72,6 @@ def create_research_manager(llm, memory):
             "2. Đánh giá chất lượng bằng chứng: dữ liệu cụ thể > ý kiến chủ quan\n"
             "3. Xét bài học từ các tình huống tương tự trong quá khứ\n"
             "4. Đưa ra quyết định dựa trên bên có bằng chứng thuyết phục hơn\n\n"
-
-            f"Bài học từ quá khứ:\n\"{sanitize_for_prompt(past_memory_str)}\"\n\n"
 
             f"Lịch sử tranh luận:\n{sanitize_for_prompt(history)}\n\n"
 

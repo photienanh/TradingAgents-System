@@ -12,7 +12,7 @@ from typing import Any, Callable, Dict, List, Optional
 from app.services.progress_tracker import (
     MessageBuffer,
     ANALYST_ORDER, ANALYST_DISPLAY, REPORT_KEY,
-    derive_realtime_step, last_msg_tool_calls, last_msg_is_clear,
+    last_msg_tool_calls, last_msg_is_clear,
     to_positive_int, TOOL_ANALYST,
 )
 
@@ -25,7 +25,7 @@ _ANALYST_AGENT_MAP = {
     "sentiment_report":    "Social Analyst",
     "news_report":         "News Analyst",
     "fundamentals_report": "Fundamentals Analyst",
-    "quant_report":        "AlphaGPT Analyst",
+    "quant_report":        "Alpha Analyst",
 }
 
 
@@ -102,7 +102,7 @@ async def run_trading_analysis(
                         mb.update_agent_status(next_disp, "in_progress")
                     else:
                         if "alpha" in analysts:
-                            mb.update_agent_status("AlphaGPT Analyst", "in_progress")
+                            mb.update_agent_status("Alpha Analyst", "in_progress")
                         else:
                             mb.update_agent_status("Bull Researcher", "in_progress")
 
@@ -116,7 +116,7 @@ async def run_trading_analysis(
 
             if chunk.get("quant_report") and "quant_report" not in _seen:
                 _seen.add("quant_report")
-                mb.update_agent_status("AlphaGPT Analyst", "completed")
+                mb.update_agent_status("Alpha Analyst", "completed")
                 mb.update_report_section("quant_report", chunk["quant_report"])
                 mb.update_agent_status("Bull Researcher", "in_progress")
 
@@ -186,7 +186,6 @@ async def run_trading_analysis(
         final_state, decision = await asyncio.to_thread(
             lambda: graph.propagate(
                 ticker, analysis_date,
-                alphagpt_signal=alpha_signal,
                 progress_callback=_on_graph_progress,
                 trading_horizon=trading_horizon,
             )

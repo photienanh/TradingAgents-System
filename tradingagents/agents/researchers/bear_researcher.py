@@ -5,7 +5,7 @@ tradingagents/agents/researchers/bear_researcher.py
 from tradingagents.agents.utils.text_sanitize import sanitize_for_prompt
 
 
-def create_bear_researcher(llm, memory):
+def create_bear_researcher(llm):
     def bear_node(state) -> dict:
         horizon                 = state.get("trading_horizon", "short")
         investment_debate_state = state["investment_debate_state"]
@@ -18,12 +18,6 @@ def create_bear_researcher(llm, memory):
         news_report             = state["news_report"]
         fundamentals_report     = state["fundamentals_report"]
 
-        curr_situation = (
-            f"{market_research_report}\n\n{sentiment_report}\n\n"
-            f"{news_report}\n\n{fundamentals_report}"
-        )
-        past_memories = memory.get_memories(curr_situation, n_matches=2)
-        past_memory_str = "".join(rec["recommendation"] + "\n\n" for rec in past_memories)
 
         if horizon == "short":
             horizon_instruction = (
@@ -33,7 +27,7 @@ def create_bear_researcher(llm, memory):
             )
             quant_report = state.get("quant_report", "")
             quant_section = (
-                f"Dữ liệu định lượng từ AlphaGPT:\n"
+                f"Dữ liệu định lượng từ Alpha:\n"
                 f"{sanitize_for_prompt(quant_report)}\n\n"
             ) if quant_report else ""
         else:
@@ -57,9 +51,6 @@ Tài chính doanh nghiệp: {sanitize_for_prompt(fundamentals_report)}
 
 ## Luận điểm Bull gần nhất (cần phản biện)
 {sanitize_for_prompt(current_response)}
-
-## Bài học quá khứ
-{sanitize_for_prompt(past_memory_str)}
 
 ---
 

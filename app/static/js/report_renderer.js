@@ -19,7 +19,7 @@ export async function loadSectionConfig() {
             sentiment_report:       'Phân tích tâm lý xã hội',
             news_report:            'Phân tích tin tức',
             fundamentals_report:    'Phân tích tài chính doanh nghiệp',
-            quant_report:           'Phân tích định lượng (AlphaGPT)',
+            quant_report:           'Phân tích định lượng',
             investment_plan:        'Quyết định nhóm nghiên cứu',
             trader_investment_plan: 'Kế hoạch nhóm giao dịch',
             final_trade_decision:   'Quyết định cuối cùng',

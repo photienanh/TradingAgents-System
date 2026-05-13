@@ -5,7 +5,6 @@ from vnstock import Quote, Finance, Company, Listing
 import pandas as pd
 import os
 import re
-from stockstats import wrap
 from .config import get_config
 from .utils import (
     build_date_window,
@@ -17,54 +16,32 @@ from .utils import (
     VN30_SYMBOLS
 )
 
-class Vnstock_Stats:
-    @staticmethod
-    def get_stock_stats(
-        symbol: Annotated[str, "ticker symbol for the company"],
-        indicator: Annotated[
-            str, "quantitative indicators based off of the stock data for the company"
-        ],
-        curr_date: Annotated[
-            str, "curr date for retrieving stock price data, YYYY-mm-dd"
-        ],
-    ):
-        config = get_config()
-        df = None
-        data = None
-        
-        today_date = pd.Timestamp.today()
-        curr_date_dt = pd.to_datetime(curr_date)
-        end_date = today_date
-        start_date = today_date - pd.DateOffset(years=15)
-        start_date = start_date.strftime("%Y-%m-%d")
-        end_date = end_date.strftime("%Y-%m-%d")
+import logging
+log = logging.getLogger(__name__)
 
-        os.makedirs(config["data_cache_dir"], exist_ok=True)
-        data_file = os.path.join(
-            config["data_cache_dir"],
-            f"{symbol}-data-{start_date}-{end_date}.csv",
-        )
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+MARKET_DATA_DIR = os.path.join(PROJECT_ROOT, "data", "market_data")
 
-        if os.path.exists(data_file):
-            data = pd.read_csv(data_file)
-            data["Date"] = pd.to_datetime(data["Date"])
-        else:
-            data = Quote(symbol=symbol).history(start=start_date, end=end_date)
-            data.rename(columns={"time": "Date", "open": "Open", "high": "High", "low": "Low", "close": "Close", "volume": "Volume"}, inplace=True)
-            data = data[["Date", "Close", "High", "Low", "Open", "Volume"]]
-            data["Date"] = data["Date"].dt.strftime("%Y-%m-%d")
-            data.to_csv(data_file, index=False)
 
-        df = wrap(data)
-        curr_date_key = curr_date_dt.strftime("%Y-%m-%d")
-        df[indicator]
-        matching_rows = df[df["Date"].str.startswith(curr_date_key)]
-        if not matching_rows.empty:
-            indicator_value = matching_rows[indicator].values[0]
-            return indicator_value
-        else:
-            return "N/A: Không phải ngày giao dịch (cuối tuần hoặc ngày lễ)"
-        
+def _read_indicator_from_csv(symbol: str, indicator: str) -> Optional[pd.Series]:
+    """
+    Đọc cột indicator từ file {symbol}.csv trong data/market_data/.
+    Trả về pd.Series với index là datetime, None nếu không tìm thấy.
+    """
+    path = os.path.join(MARKET_DATA_DIR, f"{symbol.upper()}.csv")
+    if not os.path.exists(path):
+        return None
+    try:
+        df = pd.read_csv(path, usecols=lambda c: c in ["time", indicator])
+        if indicator not in df.columns:
+            return None
+        df["time"] = pd.to_datetime(df["time"], errors="coerce").dt.normalize()
+        df = df.dropna(subset=["time"]).sort_values("time").set_index("time")
+        return df[indicator]
+    except Exception:
+        return None
+
+
 def get_stock_data(
     symbol: Annotated[str, "ticker symbol"],
     curr_date: Annotated[str, "current date for historical data, yyyy-mm-dd"],
@@ -79,7 +56,7 @@ def get_stock_data(
             return f"Không có lịch sử dữ liệu cho {symbol} từ {start_date} đến {end_date}."
         if isinstance(data.index, pd.DatetimeIndex) and data.index.tz is not None:
             data.index = data.index.tz_localize(None)
-        
+
         csv_string = data.to_csv(index=False)
 
         header = f"# Dữ liệu cổ phiếu cho {symbol.upper()} từ {start_date} đến {end_date}\n"
@@ -91,7 +68,8 @@ def get_stock_data(
         if look_back_days < 0:
             return "look_back_days phải >= 0"
         return f"Không tìm thấy mã cổ phiếu {symbol}."
-    
+
+
 def get_indicators(
     symbol: Annotated[str, "ticker symbol of the company"],
     indicator: Annotated[str, "technical indicator to get the analysis and report of"],
@@ -99,24 +77,24 @@ def get_indicators(
     look_back_days: Annotated[int, "how many days to look back"],
 ) -> str:
     best_ind_params = {
-        "close_50_sma": "50 SMA: Đường trung bình động 50 phiên, phản ánh xu hướng trung hạn.",
-        "close_200_sma": "200 SMA: Đường trung bình động 200 phiên, phản ánh xu hướng dài hạn.",
-        "close_10_ema": "10 EMA: Đường EMA 10 phiên, nhạy hơn với biến động giá ngắn hạn.",
+        "sma_50": "50 SMA: Đường trung bình động 50 phiên, phản ánh xu hướng trung hạn.",
+        "sma_200": "200 SMA: Đường trung bình động 200 phiên, phản ánh xu hướng dài hạn.",
+        "ema_10": "10 EMA: Đường EMA 10 phiên, nhạy hơn với biến động giá ngắn hạn.",
         "macd": "MACD: Chỉ báo động lượng dựa trên chênh lệch giữa các đường EMA.",
-        "macds": "MACD Signal: Đường tín hiệu của MACD, dùng để xác nhận điểm giao cắt.",
-        "macdh": "MACD Histogram: Biểu đồ chênh lệch giữa MACD và đường tín hiệu.",
-        "rsi": "RSI: Chỉ báo sức mạnh tương đối, đánh giá trạng thái quá mua/quá bán.",
-        "boll": "Bollinger Middle: Đường giữa của Bollinger Bands (thường là SMA 20).",
-        "boll_ub": "Bollinger Upper Band: Dải trên Bollinger, thường cách đường giữa 2 độ lệch chuẩn.",
-        "boll_lb": "Bollinger Lower Band: Dải dưới Bollinger, thường cách đường giữa 2 độ lệch chuẩn.",
-        "atr": "ATR: Chỉ báo đo mức độ biến động giá trung bình.",
-        "vwma": "VWMA: Đường trung bình động có trọng số theo khối lượng giao dịch.",
-        "mfi": "MFI: Chỉ báo dòng tiền dựa trên cả giá và khối lượng.",
+        "macd_signal": "MACD Signal: Đường tín hiệu của MACD, dùng để xác nhận điểm giao cắt.",
+        "macd_hist": "MACD Histogram: Chênh lệch giữa MACD và đường tín hiệu.",
+        "rsi_14": "RSI: Chỉ báo sức mạnh tương đối, đánh giá trạng thái quá mua/quá bán.",
+        "bb_middle": "Bollinger Middle: Đường giữa của Bollinger Bands (SMA 20).",
+        "bb_upper": "Bollinger Upper Band: Dải trên Bollinger, thường cách đường giữa 2 độ lệch chuẩn.",
+        "bb_lower": "Bollinger Lower Band: Dải dưới Bollinger, thường cách đường giữa 2 độ lệch chuẩn.",
+        "atr_14": "ATR: Chỉ báo đo mức độ biến động giá trung bình 14 phiên.",
+        "vwma_20": "VWMA: Đường trung bình động có trọng số theo khối lượng giao dịch 20 phiên.",
+        "mfi_14": "MFI: Money Flow Index — chỉ báo động lượng dùng cả giá và khối lượng.",
     }
 
     if indicator not in best_ind_params:
         raise ValueError(
-            f"Chỉ báo {indicator} chưa được hỗ trợ. Vui lòng chọn một trong các chỉ báo: {list(best_ind_params.keys())}"
+            f"Chỉ báo {indicator} chưa được hỗ trợ. Vui lòng chọn một trong: {list(best_ind_params.keys())}"
         )
 
     symbol = symbol.upper()
@@ -124,36 +102,38 @@ def get_indicators(
     curr_date_dt = datetime.strptime(curr_date, "%Y-%m-%d")
     before = curr_date_dt - relativedelta(days=look_back_days)
 
-    try:
-        indicator_data = _get_stock_stats_bulk(symbol, indicator)
+    # Đọc từ file CSV trước
+    series = _read_indicator_from_csv(symbol, indicator)
 
+    if series is not None:
+        # Lọc theo khoảng thời gian
+        mask = (series.index >= pd.Timestamp(before)) & (series.index <= pd.Timestamp(curr_date_dt))
+        series_window = series[mask].sort_index(ascending=False)
+
+        ind_string = ""
+        for date_idx, value in series_window.items():
+            date_str = date_idx.strftime("%Y-%m-%d")
+            if pd.isna(value):
+                ind_string += f"{date_str}: N/A\n"
+            else:
+                ind_string += f"{date_str}: {value}\n"
+
+        # Điền các ngày không có giao dịch
         current_dt = curr_date_dt
-        date_values = []
+        existing_dates = set(series_window.index.strftime("%Y-%m-%d"))
         while current_dt >= before:
             date_str = current_dt.strftime("%Y-%m-%d")
-            if date_str in indicator_data:
-                indicator_value = indicator_data[date_str]
-            else:
-                indicator_value = "N/A: Không phải ngày giao dịch (cuối tuần hoặc ngày lễ)"
-            date_values.append((date_str, indicator_value))
-            current_dt = current_dt - relativedelta(days=1)
+            if date_str not in existing_dates:
+                ind_string += f"{date_str}: N/A: Không phải ngày giao dịch\n"
+            current_dt -= timedelta(days=1)
 
-        ind_string = ""
-        for date_str, value in date_values:
-            ind_string += f"{date_str}: {value}\n"
+        # Sort lại theo ngày giảm dần
+        lines = [(l.split(":")[0], l) for l in ind_string.strip().split("\n") if l]
+        lines.sort(key=lambda x: x[0], reverse=True)
+        ind_string = "\n".join(l for _, l in lines) + "\n"
 
-    except Exception as e:
-        print(f"Lỗi khi lấy dữ liệu chỉ báo theo dạng bulk từ vnstock: {e}")
-        ind_string = ""
-        current_dt = curr_date_dt
-        while current_dt >= before:
-            indicator_value = get_stockstats_indicator(
-                symbol,
-                indicator,
-                current_dt.strftime("%Y-%m-%d"),
-            )
-            ind_string += f"{current_dt.strftime('%Y-%m-%d')}: {indicator_value}\n"
-            current_dt = current_dt - relativedelta(days=1)
+    else:
+        ind_string = f"N/A: Không tìm thấy dữ liệu {indicator} cho {symbol}.\n"
 
     result_str = (
         f"## Giá trị {indicator} từ {before.strftime('%Y-%m-%d')} đến {end_date}:\n\n"
@@ -164,8 +144,8 @@ def get_indicators(
 
     return result_str
 
+
 def _fetch_ohlcv(symbol: str, start: str, end: str, source: str = "KBS") -> pd.DataFrame:
-    """Lấy OHLCV từ vnstock, chuẩn hoá tên cột, trả về DataFrame trống nếu lỗi."""
     try:
         df = Quote(symbol=symbol, source=source).history(start=start, end=end)
         if df is None or df.empty:
@@ -180,24 +160,17 @@ def _fetch_ohlcv(symbol: str, start: str, end: str, source: str = "KBS") -> pd.D
     except Exception as e:
         print(f"[get_market_context] Lỗi khi lấy dữ liệu {symbol}: {e}")
         return pd.DataFrame()
- 
- 
+
+
 def get_market_context(
     ticker: Annotated[str, "ticker symbol đang phân tích"],
     curr_date: Annotated[str, "ngày tham chiếu YYYY-mm-dd"],
 ) -> str:
-    """
-    Trả về bối cảnh thị trường tại ngày tham chiếu gồm:
-      1. VN30 Index: biến động trong ngày + xu hướng 7N và 30N
-      2. Ticker đang phân tích: biến động trong ngày + xu hướng 7N và 30N
-      3. Breadth VN30: bao nhiêu mã tăng / giảm / đi ngang trong 7N và 30N
-    """
     SHORT_WINDOW = 7
     LONG_WINDOW  = 30
 
     ticker = ticker.upper().strip()
     ref_dt = datetime.strptime(curr_date, "%Y-%m-%d")
-    # Lấy đủ 30 ngày lịch (≈ ~22 phiên giao dịch) cho cả 2 cửa sổ
     start_dt = ref_dt - timedelta(days=LONG_WINDOW)
 
     start_str = start_dt.strftime("%Y-%m-%d")
@@ -237,7 +210,6 @@ def get_market_context(
     if vn30_df.empty:
         lines.append("  Không lấy được dữ liệu VN30.")
     else:
-        # Biến động ngày tham chiếu
         day_info = day_change(vn30_df, ref_ts)
         if day_info["change_pct"] is not None:
             lines.append(
@@ -247,14 +219,10 @@ def get_market_context(
             )
         else:
             lines.append(f"  Ngày {day_info['date']}: {day_info['status']}")
-
-        # Xu hướng 7N
         vn30_7d  = filter_window(vn30_df, ref_dt, SHORT_WINDOW)
         lines.append(format_trend_block(vn30_7d,  "Xu hướng  7 ngày"))
-        # Xu hướng 30N
         vn30_30d = filter_window(vn30_df, ref_dt, LONG_WINDOW)
         lines.append(format_trend_block(vn30_30d, "Xu hướng 30 ngày"))
-
     lines.append("")
 
     lines.append(f"## 3. Ticker {ticker}")
@@ -272,12 +240,10 @@ def get_market_context(
             )
         else:
             lines.append(f"  Ngày {day_info['date']}: {day_info['status']}")
-
         ticker_7d  = filter_window(ticker_df, ref_dt, SHORT_WINDOW)
         lines.append(format_trend_block(ticker_7d,  "Xu hướng  7 ngày"))
         ticker_30d = filter_window(ticker_df, ref_dt, LONG_WINDOW)
         lines.append(format_trend_block(ticker_30d, "Xu hướng 30 ngày"))
-
     lines.append("")
 
     lines.append("## 4. Breadth VN30")
@@ -334,9 +300,6 @@ def get_market_context(
 
     industry_eval = None
     if industry_name and len(industry_symbols) >= 2:
-        # ------------------------------------------------------------------
-        # Đánh giá cùng nhóm ngành VN30
-        # ------------------------------------------------------------------
         lines.append("## 5. Đánh giá cùng nhóm ngành (VN30)")
 
         peers = [s for s in industry_symbols if s != ticker]
@@ -382,9 +345,6 @@ def get_market_context(
 
         lines.append("")
 
-    # ------------------------------------------------------------------
-    # Tóm tắt
-    # ------------------------------------------------------------------
     lines.append("## Tóm tắt")
     vnindex_trend_7d  = classify_trend(filter_window(vnindex, ref_dt, SHORT_WINDOW)) if not vnindex.empty else "N/A"
     vnindex_trend_30d = classify_trend(filter_window(vnindex, ref_dt, LONG_WINDOW))  if not vnindex.empty else "N/A"
@@ -392,15 +352,9 @@ def get_market_context(
     vn30_trend_30d = classify_trend(filter_window(vn30_df,   ref_dt, LONG_WINDOW))  if not vn30_df.empty   else "N/A"
     tick_trend_7d  = classify_trend(filter_window(ticker_df, ref_dt, SHORT_WINDOW)) if not ticker_df.empty else "N/A"
     tick_trend_30d = classify_trend(filter_window(ticker_df, ref_dt, LONG_WINDOW))  if not ticker_df.empty else "N/A"
-    lines.append(
-        f"  VN-Index    – 7N: {vnindex_trend_7d} | 30N: {vnindex_trend_30d}"
-    )
-    lines.append(
-        f"  VN30-Index  – 7N: {vn30_trend_7d} | 30N: {vn30_trend_30d}"
-    )
-    lines.append(
-        f"  {ticker} – 7N: {tick_trend_7d} | 30N: {tick_trend_30d}"
-    )
+    lines.append(f"  VN-Index    – 7N: {vnindex_trend_7d} | 30N: {vnindex_trend_30d}")
+    lines.append(f"  VN30-Index  – 7N: {vn30_trend_7d} | 30N: {vn30_trend_30d}")
+    lines.append(f"  {ticker} – 7N: {tick_trend_7d} | 30N: {tick_trend_30d}")
     lines.append(
         f"  Breadth VN30  7N: {len(breadth_7d['tăng'])} tăng / {len(breadth_7d['giảm'])} giảm / {len(breadth_7d['đi ngang'])} đi ngang"
     )
@@ -418,94 +372,7 @@ def get_market_context(
         )
 
     return "\n".join(lines)
- 
-def _get_stock_stats_bulk(
-    symbol: Annotated[str, "ticker symbol of the company"],
-    indicator: Annotated[str, "technical indicator to calculate"],
-) -> dict:
-    """Bulk calculation for vnstock indicators with local cache."""
-    from stockstats import wrap
-    from .config import get_config
 
-    config = get_config()
-
-    today_date = pd.Timestamp.today()
-    start_date = (today_date - pd.DateOffset(years=15)).strftime("%Y-%m-%d")
-    end_date = today_date.strftime("%Y-%m-%d")
-
-    os.makedirs(config["data_cache_dir"], exist_ok=True)
-    data_file = os.path.join(
-        config["data_cache_dir"],
-        f"{symbol}-data-{start_date}-{end_date}.csv",
-    )
-
-    if os.path.exists(data_file):
-        data = pd.read_csv(data_file)
-    else:
-        data = Quote(symbol=symbol).history(start=start_date, end=end_date)
-        if data is None or data.empty:
-            raise ValueError(f"Không có dữ liệu vnstock trả về cho mã {symbol}")
-
-        data.rename(
-            columns={
-                "time": "Date",
-                "open": "Open",
-                "high": "High",
-                "low": "Low",
-                "close": "Close",
-                "volume": "Volume",
-            },
-            inplace=True,
-        )
-
-        required_cols = ["Date", "Close", "High", "Low", "Open", "Volume"]
-        missing_cols = [col for col in required_cols if col not in data.columns]
-        if missing_cols:
-            raise ValueError(f"Thiếu các cột OHLCV bắt buộc từ vnstock: {missing_cols}")
-
-        data = data[required_cols]
-        data.to_csv(data_file, index=False)
-
-    if "Date" not in data.columns:
-        raise ValueError("Không tìm thấy cột Date trong dữ liệu vnstock")
-
-    data["Date"] = pd.to_datetime(data["Date"], errors="coerce")
-    data = data.dropna(subset=["Date"]).copy()
-    data["Date"] = data["Date"].dt.strftime("%Y-%m-%d")
-
-    df = wrap(data)
-    df[indicator]
-
-    result_dict = {}
-    for _, row in df.iterrows():
-        date_str = row["Date"]
-        indicator_value = row[indicator]
-        result_dict[date_str] = "N/A" if pd.isna(indicator_value) else str(indicator_value)
-
-    return result_dict
-
-def get_stockstats_indicator(
-    symbol: Annotated[str, "ticker symbol of the company"],
-    indicator: Annotated[str, "technical indicator to get the analysis and report of"],
-    curr_date: Annotated[str, "The current trading date you are trading on, YYYY-mm-dd"],
-) -> str:
-
-    curr_date_dt = datetime.strptime(curr_date, "%Y-%m-%d")
-    curr_date = curr_date_dt.strftime("%Y-%m-%d")
-
-    try:
-        indicator_value = Vnstock_Stats.get_stock_stats(
-            symbol,
-            indicator,
-            curr_date,
-        )
-    except Exception as e:
-        print(
-            f"Lỗi khi lấy dữ liệu chỉ báo {indicator} tại ngày {curr_date}: {e}"
-        )
-        return ""
-
-    return str(indicator_value)
 
 def get_balance_sheet(
     symbol: Annotated[str, "ticker symbol of the company"],
@@ -527,22 +394,21 @@ def get_balance_sheet(
 
         if data.empty:
             return f"Không có dữ liệu bảng cân đối kế toán cho mã '{symbol}'"
-        
+
         data.dropna(inplace=True)
         if "item_id" in data.columns:
             data = data.drop(columns=["item_id"])
-        # Convert to CSV string for consistency with other functions
         csv_string = data.to_csv(index=False)
-        
-        # Add header information
+
         freq_vn = "năm" if freq == "year" else "quý"
         header = f"# Dữ liệu bảng cân đối kế toán cho {symbol.upper()} theo ({freq_vn})\n"
         header += f"# Dữ liệu được lấy vào lúc: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
         return header + csv_string
-        
+
     except Exception as e:
         return f"Lỗi khi lấy bảng cân đối kế toán cho {symbol}: {str(e)}"
-    
+
+
 def get_cashflow(
     symbol: Annotated[str, "ticker symbol of the company"],
     freq: Annotated[str, "frequency of data: 'year' or 'quarter'"] = "year",
@@ -563,62 +429,60 @@ def get_cashflow(
 
         if data.empty:
             return f"Không có dữ liệu báo cáo lưu chuyển tiền tệ cho mã '{symbol}'"
-        
+
         if freq == "year":
             data.dropna(inplace=True)
-        
+
         if "item_id" in data.columns:
             data = data.drop(columns=["item_id"])
         csv_string = data.to_csv(index=False)
 
-        # Add header information
         freq_vn = "năm" if freq == "year" else "quý"
         header = f"# Dữ liệu lưu chuyển tiền tệ cho {symbol.upper()} theo ({freq_vn})\n"
         header += f"# Dữ liệu được lấy vào lúc: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-        
+
         return header + csv_string
-        
+
     except Exception as e:
         return f"Lỗi khi lấy báo cáo lưu chuyển tiền tệ cho {symbol}: {str(e)}"
+
 
 def get_income_statement(
     symbol: Annotated[str, "ticker symbol of the company"],
     freq: Annotated[str, "frequency of data: 'year' or 'quarter'"] = "quarter",
 ):
-
     try:
         if freq.lower() == "quaterly":
             freq = "quarter"
         elif freq.lower() == "annual":
             freq = "year"
-        
+
         try:
             finance = Finance(symbol=symbol.upper(), source="KBS")
             data = finance.income_statement(period=freq)
         except Exception as e:
-            print(f"Lỗi khi lấy dữ liệu báo cáo kết quả kinh doanh từ KBS cho {symbol}: {e}, thử lại với VCI")
+            print(f"Lỗi KBS cho {symbol}: {e}, thử VCI")
             finance = Finance(symbol=symbol.upper(), source="VCI")
             data = finance.income_statement(period=freq)
 
         if data.empty:
             return f"Không có dữ liệu bảng cân đối kế toán cho mã '{symbol}'"
-        
+
         data.dropna(inplace=True)
         if "item_id" in data.columns:
             data = data.drop(columns=["item_id"])
 
-        # Convert to CSV string for consistency with other functions
         csv_string = data.to_csv(index=False)
-        
-        # Add header information
+
         freq_vn = "năm" if freq == "year" else "quý"
         header = f"# Dữ liệu báo cáo kết quả kinh doanh cho {symbol.upper()} theo ({freq_vn})\n"
         header += f"# Dữ liệu được lấy vào lúc: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-        
+
         return header + csv_string
-        
+
     except Exception as e:
         return f"Lỗi khi lấy báo cáo kết quả kinh doanh cho {symbol}: {str(e)}"
+
 
 def get_fundamentals(
     symbol: Annotated[str, "ticker symbol of the company"],
@@ -656,8 +520,6 @@ def get_fundamentals(
         ratio_map = {}
         latest_quarter = None
         if ratio_df is not None and not ratio_df.empty:
-            # KBS trả về dạng bảng chỉ tiêu theo hàng (item_id + các cột kỳ báo cáo),
-            # còn VCI trả về MultiIndex theo nhóm chỉ tiêu. Parse theo source để giữ fallback ổn định.
             if ratio_source == "KBS":
                 quarter_cols = [
                     c for c in ratio_df.columns
@@ -672,30 +534,24 @@ def get_fundamentals(
             else:
                 if isinstance(ratio_df.columns, pd.MultiIndex):
                     work_df = ratio_df.copy()
-
                     year_col = ("Meta", "yearReport")
                     len_col = ("Meta", "lengthReport")
                     if year_col in work_df.columns:
                         work_df[year_col] = pd.to_numeric(work_df[year_col], errors="coerce")
                     if len_col in work_df.columns:
                         work_df[len_col] = pd.to_numeric(work_df[len_col], errors="coerce")
-
                     sort_cols = []
                     if year_col in work_df.columns:
                         sort_cols.append(year_col)
                     if len_col in work_df.columns:
                         sort_cols.append(len_col)
-
                     if sort_cols:
                         work_df = work_df.sort_values(by=sort_cols, ascending=False)
-
                     latest_row = work_df.iloc[0]
-
                     if year_col in work_df.columns:
                         year_val = latest_row.get(year_col)
                         if pd.notna(year_val):
                             latest_quarter = str(int(year_val))
-
                     vci_key_map = {
                         "trailing_eps": ("Chỉ tiêu định giá", "EPS (VND)"),
                         "book_value_per_share_bvps": ("Chỉ tiêu định giá", "BVPS (VND)"),
@@ -709,7 +565,6 @@ def get_fundamentals(
                         "roe": ("Chỉ tiêu khả năng sinh lợi", "ROE (%)"),
                         "roa": ("Chỉ tiêu khả năng sinh lợi", "ROA (%)"),
                     }
-
                     for canonical_key, vci_col in vci_key_map.items():
                         if vci_col in work_df.columns:
                             ratio_map[canonical_key] = latest_row.get(vci_col)
@@ -724,7 +579,6 @@ def get_fundamentals(
             return value
 
         lines = []
-        
         overview_fields = [
             ("company_name", "Tên công ty"),
             ("symbol", "Mã"),
@@ -737,7 +591,6 @@ def get_fundamentals(
             ("email", "Email"),
             ("website", "Website"),
         ]
-
         for key, label in overview_fields:
             value = clean(overview.get(key))
             if value is not None:
@@ -758,7 +611,6 @@ def get_fundamentals(
             ("roe", "ROE"),
             ("roa", "ROA"),
         ]
-
         for key, label in ratio_fields:
             value = clean(ratio_map.get(key))
             if value is not None:
@@ -786,21 +638,17 @@ def _clean_news_text(value: object) -> str:
 
 
 def _pick_news_timestamp(df: pd.DataFrame) -> pd.Series:
-    # Prefer public_date, then created_at, then updated_at; values are usually epoch milliseconds.
     for col in ["public_date", "created_at", "updated_at"]:
         if col not in df.columns:
             continue
-
         numeric = pd.to_numeric(df[col], errors="coerce")
         if numeric.notna().any():
             ts = pd.to_datetime(numeric, unit="ms", errors="coerce")
             if ts.notna().any():
                 return ts
-
         ts = pd.to_datetime(df[col], errors="coerce")
         if ts.notna().any():
             return ts
-
     return pd.to_datetime(pd.Series([None] * len(df)), errors="coerce")
 
 
@@ -809,8 +657,6 @@ def get_news(
     curr_date: Annotated[str, "Current trading date in yyyy-mm-dd format"],
     look_back_days: Annotated[int, "Number of days to look back"] = 30,
 ) -> str:
-    """Get company news from vnstock VCI source using current date and look-back window."""
-
     try:
         end_dt = datetime.strptime(curr_date, "%Y-%m-%d")
     except ValueError:
@@ -818,10 +664,8 @@ def get_news(
 
     effective_lookback_days = max(look_back_days, 30)
     start_dt = end_dt - relativedelta(days=effective_lookback_days)
-
     start_date = start_dt.strftime("%Y-%m-%d")
     end_date = end_dt.strftime("%Y-%m-%d")
-
     symbol = ticker.upper().strip()
 
     try:
@@ -834,8 +678,6 @@ def get_news(
 
     df = news_df.copy()
     df["_ts"] = _pick_news_timestamp(df)
-
-    # Keep rows with valid timestamp and filter by inclusive date range.
     df = df[df["_ts"].notna()].copy()
     df = df[(df["_ts"] >= start_dt) & (df["_ts"] <= end_dt + pd.Timedelta(days=1))]
 

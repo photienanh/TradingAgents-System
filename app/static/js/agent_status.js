@@ -4,7 +4,7 @@
  */
 
 export const AGENT_GROUPS = [
-    { title: 'Analyst Team',    agents: ['Market Analyst', 'Social Analyst', 'News Analyst', 'Fundamentals Analyst', 'AlphaGPT Analyst'] },
+    { title: 'Analyst Team',    agents: ['Market Analyst', 'Social Analyst', 'News Analyst', 'Fundamentals Analyst', 'Alpha Analyst'] },
     { title: 'Researcher Team', agents: ['Bull Researcher', 'Bear Researcher', 'Research Manager'] },
     { title: 'Trader',          agents: ['Trader'] },
     { title: 'Risk Management', agents: ['Risky Analyst', 'Safe Analyst', 'Neutral Analyst', 'Portfolio Manager'] },

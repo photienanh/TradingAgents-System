@@ -147,13 +147,13 @@ def _fallback_plain_report(raw: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def create_alphagpt_analyst(llm):
+def create_alpha_analyst(llm):
     """
     alpha_formula_dir / alpha_values_dir kept for backward compatibility.
     New flow reads from data/alpha_library.json + data/market_data via alpha.daily_runner.
     """
 
-    def alphagpt_analyst_node(state: Dict[str, Any]) -> Dict[str, Any]:
+    def alpha_analyst_node(state: Dict[str, Any]) -> Dict[str, Any]:
         ticker = str(state.get("company_of_interest", "")).upper().strip()
         trade_date = str(state.get("trade_date", ""))
 
@@ -183,9 +183,9 @@ def create_alphagpt_analyst(llm):
             response = llm.invoke(messages)
             report = response.content
         except Exception as exc:
-            log.warning("[AlphaGPT Analyst] LLM generation failed: %s", exc)
+            log.warning("[Alpha Analyst] LLM generation failed: %s", exc)
             report = _fallback_plain_report(raw)
 
         return {"messages": [], "quant_report": report}
 
-    return alphagpt_analyst_node
+    return alpha_analyst_node

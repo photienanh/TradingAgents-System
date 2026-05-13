@@ -18,9 +18,6 @@ python-dateutil
 sentence-transformers
 faiss-cpu
 
-# Memory
-chromadb
-
 # Web app
 fastapi
 uvicorn

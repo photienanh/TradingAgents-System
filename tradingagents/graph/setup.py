@@ -22,7 +22,7 @@ from tradingagents.agents import (
     create_social_media_analyst,
     create_trader,
 )
-from tradingagents.agents.analysts.alphagpt_analyst import create_alphagpt_analyst
+from tradingagents.agents.analysts.alpha_analyst import create_alpha_analyst
 from tradingagents.agents.utils.agent_states import AgentState
 from .conditional_logic import ConditionalLogic
 
@@ -33,21 +33,11 @@ class GraphSetup:
         quick_thinking_llm: ChatOpenAI,
         deep_thinking_llm: ChatOpenAI,
         tool_nodes: Dict[str, ToolNode],
-        bull_memory,
-        bear_memory,
-        trader_memory,
-        invest_judge_memory,
-        risk_manager_memory,
         conditional_logic: ConditionalLogic,
     ):
         self.quick_thinking_llm  = quick_thinking_llm
         self.deep_thinking_llm   = deep_thinking_llm
         self.tool_nodes          = tool_nodes
-        self.bull_memory         = bull_memory
-        self.bear_memory         = bear_memory
-        self.trader_memory       = trader_memory
-        self.invest_judge_memory = invest_judge_memory
-        self.risk_manager_memory = risk_manager_memory
         self.conditional_logic   = conditional_logic
 
     def setup_graph(self, selected_analysts=None):
@@ -86,14 +76,14 @@ class GraphSetup:
             delete_nodes[key]  = create_msg_delete()
             tool_node_map[key] = self.tool_nodes[key]
 
-        bull_researcher_node  = create_bull_researcher(self.quick_thinking_llm, self.bull_memory)
-        bear_researcher_node  = create_bear_researcher(self.quick_thinking_llm, self.bear_memory)
-        research_manager_node = create_research_manager(self.deep_thinking_llm, self.invest_judge_memory)
-        trader_node           = create_trader(self.quick_thinking_llm, self.trader_memory)
+        bull_researcher_node  = create_bull_researcher(self.quick_thinking_llm)
+        bear_researcher_node  = create_bear_researcher(self.quick_thinking_llm)
+        research_manager_node = create_research_manager(self.deep_thinking_llm)
+        trader_node           = create_trader(self.quick_thinking_llm)
         risky_analyst         = create_risky_debator(self.quick_thinking_llm)
         neutral_analyst       = create_neutral_debator(self.quick_thinking_llm)
         safe_analyst          = create_safe_debator(self.quick_thinking_llm)
-        risk_manager_node     = create_risk_manager(self.deep_thinking_llm, self.risk_manager_memory)
+        risk_manager_node     = create_risk_manager(self.deep_thinking_llm)
 
         # ── Build graph ────────────────────────────────────────────────
         workflow = StateGraph(AgentState)
@@ -104,10 +94,10 @@ class GraphSetup:
             workflow.add_node(f"Msg Clear {label.split()[0]}", delete_nodes[key])
             workflow.add_node(f"tools_{key}", tool_node_map[key])
 
-        # Đăng ký AlphaGPT node chỉ khi được chọn
+        # Đăng ký Alpha node chỉ khi được chọn
         if use_alpha:
-            alphagpt_node = create_alphagpt_analyst(llm=self.quick_thinking_llm)
-            workflow.add_node("AlphaGPT Analyst", alphagpt_node)
+            alpha_node = create_alpha_analyst(llm=self.quick_thinking_llm)
+            workflow.add_node("Alpha Analyst", alpha_node)
 
         # Đăng ký downstream nodes
         workflow.add_node("Bull Researcher",  bull_researcher_node)
@@ -136,15 +126,15 @@ class GraphSetup:
                 next_label = analyst_nodes[qualitative_analysts[i + 1]][1]
                 workflow.add_edge(clear_node, next_label)
             else:
-                # Analyst cuối → AlphaGPT nếu có, ngược lại thẳng Bull Researcher
+                # Analyst cuối → Alpha nếu có, ngược lại thẳng Bull Researcher
                 if use_alpha:
-                    workflow.add_edge(clear_node, "AlphaGPT Analyst")
+                    workflow.add_edge(clear_node, "Alpha Analyst")
                 else:
                     workflow.add_edge(clear_node, "Bull Researcher")
 
-        # AlphaGPT → Bull Researcher
+        # Alpha → Bull Researcher
         if use_alpha:
-            workflow.add_edge("AlphaGPT Analyst", "Bull Researcher")
+            workflow.add_edge("Alpha Analyst", "Bull Researcher")
 
         # ── Edges: Researcher debate ───────────────────────────────────
         workflow.add_conditional_edges(

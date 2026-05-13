@@ -3,6 +3,7 @@ alpha/daily_runner.py
 
 Daily updater for AlphaGPT integration:
 - Refresh market data CSV files (best-effort, incremental)
+- Tính toán technical indicators và lưu vào cùng file CSV
 - Build per-ticker alpha bias from top-5 alphas in data/alpha_library.json (sorted by ic_oos)
 - Persist daily signal snapshot to data/signals/
 """
@@ -41,6 +42,9 @@ VNSTOCK_FALLBACK_TICKERS = {
     "OPC", "PGI", "PNC", "S4A", "SSC", "STG", "TDM", "TMP", "TPC",
     "TVT", "UIC", "VAB", "VAF",
 }
+
+# Số mã đầu tiên kiểm tra để phát hiện ngày nghỉ
+HOLIDAY_PROBE_COUNT = 5
 
 
 def _safe_float(value: Any) -> Optional[float]:
@@ -105,12 +109,32 @@ def _load_ticker_frame(ticker: str, market_data_dir: Path = MARKET_DATA_DIR) -> 
         raw = raw.dropna(subset=["time", "open", "high", "low", "close", "volume"])
         raw = raw.sort_values("time").set_index("time")
 
-        keep = ["open", "high", "low", "close", "volume"]
-        if "industry" in raw.columns:
-            keep.append("industry")
-        base = raw[[c for c in keep if c in raw.columns]]
+        # Nếu file đã có indicators thì dùng luôn, không tính lại
+        indicator_cols = [
+            "sma_5", "sma_20", "sma_50", "sma_200", "ema_10",
+            "rsi_14", "macd", "macd_signal", "macd_hist",
+            "bb_upper", "bb_middle", "bb_lower",
+            "atr_14", "vwma_20", "mfi_14",
+        ]
+        has_indicators = all(c in raw.columns for c in ["rsi_14", "macd", "bb_upper"])
 
-        df = add_technical_indicators(base)
+        if has_indicators:
+            # Chỉ giữ các cột cần thiết, không tính lại
+            keep = ["open", "high", "low", "close", "volume"]
+            if "industry" in raw.columns:
+                keep.append("industry")
+            # Thêm các cột indicator đã có
+            for c in indicator_cols + ["vwap", "adv20", "obv", "returns", "momentum_3", "momentum_10"]:
+                if c in raw.columns:
+                    keep.append(c)
+            df = raw[[c for c in keep if c in raw.columns]]
+        else:
+            keep = ["open", "high", "low", "close", "volume"]
+            if "industry" in raw.columns:
+                keep.append("industry")
+            base = raw[[c for c in keep if c in raw.columns]]
+            df = add_technical_indicators(base)
+
         return df
     except Exception as exc:
         log.warning("[DailyRunner] Failed to load %s: %s", ticker, exc)
@@ -168,12 +192,8 @@ def _fetch_ohlcv_vnstock(symbol: str, start: str, end: str) -> pd.DataFrame:
     history = history.copy()
     history.reset_index(inplace=True)
     rename_map = {
-        "Date": "time",
-        "Open": "open",
-        "High": "high",
-        "Low": "low",
-        "Close": "close",
-        "Volume": "volume",
+        "Date": "time", "Open": "open", "High": "high",
+        "Low": "low", "Close": "close", "Volume": "volume",
     }
     history.rename(columns=rename_map, inplace=True)
     if "ticker" not in history.columns:
@@ -226,12 +246,6 @@ def compute_ticker_signal(
     top_alphas: Optional[List[Dict[str, Any]]] = None,
     market_data_dir: Path = MARKET_DATA_DIR,
 ) -> Dict[str, Any]:
-    """
-    Compute alpha bias for one ticker from top-5 global alphas.
-
-    Output fields are consumed by app + decision fusion:
-    - enabled, ticker, side, signal_today, ic_oos, sharpe_oos, return_oos, top_alphas
-    """
     ticker = ticker.upper().strip()
     alphas = top_alphas if top_alphas is not None else load_alpha_definitions()
 
@@ -259,7 +273,7 @@ def compute_ticker_signal(
         base["error"] = f"No market data for {ticker}"
         return base
 
-    votes: List[Tuple[float, float]] = []  # (weight, signal_today)
+    votes: List[Tuple[float, float]] = []
     used_alphas: List[Dict[str, Any]] = []
 
     for idx, alpha in enumerate(alphas):
@@ -274,16 +288,14 @@ def compute_ticker_signal(
             continue
 
         votes.append((max(ic_oos, 1e-6), sig))
-        used_alphas.append(
-            {
-                "rank": idx + 1,
-                "id": alpha.get("id", ""),
-                "ic_oos": ic_oos,
-                "sharpe_oos": _safe_float(alpha.get("sharpe_oos")),
-                "return_oos": _safe_float(alpha.get("return_oos")),
-                "signal_today": sig,
-            }
-        )
+        used_alphas.append({
+            "rank": idx + 1,
+            "id": alpha.get("id", ""),
+            "ic_oos": ic_oos,
+            "sharpe_oos": _safe_float(alpha.get("sharpe_oos")),
+            "return_oos": _safe_float(alpha.get("return_oos")),
+            "signal_today": sig,
+        })
 
     if not votes:
         base["error"] = "No valid alpha signal for this ticker"
@@ -307,18 +319,16 @@ def compute_ticker_signal(
     else:
         side = "neutral"
 
-    base.update(
-        {
-            "enabled": True,
-            "side": side,
-            "signal_today": round(composite, 6),
-            "score": round(composite, 6),
-            "ic_oos": round(avg_ic, 6) if np.isfinite(avg_ic) else None,
-            "sharpe_oos": round(avg_sh, 6) if avg_sh is not None and np.isfinite(avg_sh) else None,
-            "return_oos": round(avg_ret, 6) if avg_ret is not None and np.isfinite(avg_ret) else None,
-            "used_alphas": used_alphas,
-        }
-    )
+    base.update({
+        "enabled": True,
+        "side": side,
+        "signal_today": round(composite, 6),
+        "score": round(composite, 6),
+        "ic_oos": round(avg_ic, 6) if np.isfinite(avg_ic) else None,
+        "sharpe_oos": round(avg_sh, 6) if avg_sh is not None and np.isfinite(avg_sh) else None,
+        "return_oos": round(avg_ret, 6) if avg_ret is not None and np.isfinite(avg_ret) else None,
+        "used_alphas": used_alphas,
+    })
     return base
 
 
@@ -337,35 +347,73 @@ def _read_last_local_day(path: Path) -> Optional[pd.Timestamp]:
         return None
 
 
+def _should_refresh(ticker_path: Path, now: datetime, daily_start_hour: int) -> Tuple[bool, str]:
+    """
+    Quyết định có cần refresh hay không.
+    Returns: (should_refresh, reason)
+    """
+    last_day = _read_last_local_day(ticker_path)
+    today = now.date()
+
+    if last_day is None:
+        return True, "no_data"
+
+    last_date = last_day.date()
+    days_behind = (today - last_date).days
+
+    # Dữ liệu đã là ngày hôm nay → skip
+    if last_date >= today:
+        return False, "up_to_date"
+
+    # Lệch từ 2 ngày → cập nhật ngay bất kể giờ
+    if days_behind >= 2:
+        return True, f"backfill_{days_behind}d"
+
+    # Lệch 1-2 ngày: kiểm tra giờ
+    if now.hour >= daily_start_hour:
+        return True, "scheduled_update"
+    else:
+        return False, "before_market_open"
+
+
 def _refresh_ticker_market_data(
     ticker: str,
     market_data_dir: Path = MARKET_DATA_DIR,
+    daily_start_hour: int = 9,
+    now: Optional[datetime] = None,
 ) -> Dict[str, Any]:
-    """Best-effort incremental update using vnstock for one ticker."""
+    """Best-effort incremental update + tính indicator cho một ticker."""
+    if now is None:
+        now = datetime.now()
+
     path = market_data_dir / f"{ticker}.csv"
     market_data_dir.mkdir(parents=True, exist_ok=True)
 
     last_day = _read_last_local_day(path)
-    end_day = datetime.today().date()
+    end_day = now.date()
     before_day = last_day.date() if last_day is not None else None
 
-    if last_day is not None and last_day.date() >= end_day:
+    should, reason = _should_refresh(path, now, daily_start_hour)
+    if not should:
         return {
             "changed": False,
             "new_rows": 0,
             "before_day": before_day,
             "after_day": before_day,
             "attempted": False,
+            "reason": reason,
         }
 
-    start_date = (last_day.date() - timedelta(days=5)) if last_day is not None else (end_day - timedelta(days=365 * 3))
+    if last_day is not None:
+        start_date = (last_day.date() - timedelta(days=5)).strftime("%Y-%m-%d")
+    else:
+        start_date = (end_day - timedelta(days=365 * 5)).strftime("%Y-%m-%d")
 
     use_vnstock = ticker.upper() in VNSTOCK_FALLBACK_TICKERS
     if use_vnstock:
-        remote = _fetch_ohlcv_vnstock(ticker, start=start_date.strftime("%Y-%m-%d"), end=end_day.strftime("%Y-%m-%d"))
+        remote = _fetch_ohlcv_vnstock(ticker, start=start_date, end=end_day.strftime("%Y-%m-%d"))
     else:
-        remote = _fetch_ohlcv_yfinance(ticker, start=start_date.strftime("%Y-%m-%d"), end=end_day.strftime("%Y-%m-%d"))
-
+        remote = _fetch_ohlcv_yfinance(ticker, start=start_date, end=end_day.strftime("%Y-%m-%d"))
 
     if remote.empty:
         return {
@@ -374,6 +422,7 @@ def _refresh_ticker_market_data(
             "before_day": before_day,
             "after_day": before_day,
             "attempted": True,
+            "reason": reason,
         }
 
     cols = [c for c in ["time", "ticker", "open", "high", "low", "close", "volume", "industry"] if c in remote.columns]
@@ -384,6 +433,7 @@ def _refresh_ticker_market_data(
             "before_day": before_day,
             "after_day": before_day,
             "attempted": True,
+            "reason": reason,
         }
 
     remote = remote[cols].copy()
@@ -400,7 +450,6 @@ def _refresh_ticker_market_data(
         if "time" in local.columns:
             local["time"] = pd.to_datetime(local["time"], errors="coerce").dt.normalize()
 
-        # Keep metadata columns stable across incremental merges.
         if "ticker" not in local.columns:
             local["ticker"] = ticker.upper()
         if "industry" not in local.columns:
@@ -411,22 +460,27 @@ def _refresh_ticker_market_data(
             remote["industry"] = remote["industry"].fillna(fallback_industry)
         remote["ticker"] = remote["ticker"].fillna(ticker.upper())
 
-        merged = pd.concat([local, remote], ignore_index=True)
+        # Giữ các cột OHLCV + metadata từ local, bỏ indicator cũ để tính lại
+        base_cols = ["time", "ticker", "open", "high", "low", "close", "volume", "industry"]
+        local_base = local[[c for c in base_cols if c in local.columns]]
+        remote_base = remote[[c for c in base_cols if c in remote.columns]]
+
+        merged = pd.concat([local_base, remote_base], ignore_index=True)
     else:
         remote["ticker"] = remote["ticker"].fillna(ticker.upper())
-        merged = remote
+        base_cols = ["time", "ticker", "open", "high", "low", "close", "volume", "industry"]
+        merged = remote[[c for c in base_cols if c in remote.columns]]
 
+    # Dedup: keep='last' để dữ liệu mới crawl ghi đè dữ liệu cũ cùng ngày
     merged = merged.drop_duplicates(subset=["time"], keep="last").sort_values("time")
-    ordered_cols = ["time", "ticker", "open", "high", "low", "close", "volume", "industry"]
-    for c in ordered_cols:
-        if c not in merged.columns:
-            merged[c] = pd.NA
-    merged = merged[ordered_cols]
+
+    # Tính lại toàn bộ indicators trên dữ liệu đã merge
+    merged = _recalculate_indicators(merged, ticker)
 
     before = 0
     if path.exists():
         try:
-            before = len(pd.read_csv(path))
+            before = len(pd.read_csv(path, usecols=["time"]))
         except Exception:
             before = 0
 
@@ -436,48 +490,101 @@ def _refresh_ticker_market_data(
     after_day = merged_last_ts.date() if pd.notna(merged_last_ts) else before_day
 
     return {
-        "changed": after > before,
+        "changed": after > before or reason.startswith("backfill"),
         "new_rows": max(after - before, 0),
         "before_day": before_day,
         "after_day": after_day,
         "attempted": True,
+        "reason": reason,
     }
 
 
-def refresh_market_data_daily(tickers: Optional[List[str]] = None) -> Dict[str, Any]:
+def _recalculate_indicators(merged: pd.DataFrame, ticker: str) -> pd.DataFrame:
+    """Tính lại toàn bộ technical indicators và gộp vào DataFrame."""
+    try:
+        ohlcv = merged.set_index("time")[["open", "high", "low", "close", "volume"]].copy()
+        ohlcv.index = pd.to_datetime(ohlcv.index)
+        ohlcv = ohlcv.sort_index()
+
+        df_with_indicators = add_technical_indicators(ohlcv)
+        df_with_indicators = df_with_indicators.reset_index().rename(columns={"index": "time"})
+        df_with_indicators["time"] = pd.to_datetime(df_with_indicators["time"]).dt.normalize()
+
+        # Lấy lại metadata columns
+        meta_cols = [c for c in ["ticker", "industry"] if c in merged.columns]
+        if meta_cols:
+            meta = merged[["time"] + meta_cols].copy()
+            meta["time"] = pd.to_datetime(meta["time"]).dt.normalize()
+            df_with_indicators = df_with_indicators.merge(meta, on="time", how="left")
+
+        # Sắp xếp cột: time, ticker, OHLCV, industry, indicators
+        first_cols = ["time", "ticker", "open", "high", "low", "close", "volume", "industry"]
+        existing_first = [c for c in first_cols if c in df_with_indicators.columns]
+        rest_cols = [c for c in df_with_indicators.columns if c not in first_cols]
+        df_with_indicators = df_with_indicators[existing_first + rest_cols]
+
+        return df_with_indicators
+    except Exception as e:
+        log.warning("[DailyRunner] Failed to calculate indicators for %s: %s", ticker, e)
+        # Fallback: trả về merged không có indicators
+        ordered_cols = ["time", "ticker", "open", "high", "low", "close", "volume", "industry"]
+        for c in ordered_cols:
+            if c not in merged.columns:
+                merged[c] = pd.NA
+        return merged[[c for c in ordered_cols if c in merged.columns]]
+
+
+def refresh_market_data_daily(
+    tickers: Optional[List[str]] = None,
+    daily_start_hour: int = 9,
+) -> Dict[str, Any]:
     """Incrementally update market CSVs for selected tickers."""
     if tickers is None:
         tickers = sorted([p.stem.upper() for p in MARKET_DATA_DIR.glob("*.csv")])
     total_tickers = len(tickers)
 
+    now = datetime.now()
     changed, skipped = [], []
     failed = []
     new_rows_total = 0
     holiday_detected = False
     holiday_probe_ticker = None
 
+    # Kiểm tra holiday: thử HOLIDAY_PROBE_COUNT mã đầu tiên
+    probe_no_new = 0
+
     for idx, ticker in enumerate(tickers, start=1):
         try:
-            result = _refresh_ticker_market_data(ticker)
+            result = _refresh_ticker_market_data(
+                ticker,
+                daily_start_hour=daily_start_hour,
+                now=now,
+            )
             is_changed = bool(result.get("changed"))
             n_new = int(result.get("new_rows") or 0)
+            attempted = bool(result.get("attempted"))
+            reason = result.get("reason", "")
 
-            if idx == 1:
-                holiday_probe_ticker = ticker
+            # Kiểm tra holiday từ các mã probe đầu tiên
+            if idx <= HOLIDAY_PROBE_COUNT and attempted:
+                if holiday_probe_ticker is None:
+                    holiday_probe_ticker = ticker
                 before_day = result.get("before_day")
                 after_day = result.get("after_day")
-                attempted = bool(result.get("attempted"))
-                # Rule: after first ticker, if no new day appears, treat as holiday and stop.
-                if attempted and before_day is not None and after_day is not None and after_day <= before_day:
-                    holiday_detected = True
-                    skipped.append(ticker)
-                    log.info(
-                        "[DailyRunner] Holiday detected from first ticker %s (before=%s, after=%s). Stop daily refresh.",
-                        ticker,
-                        before_day,
-                        after_day,
-                    )
-                    break
+                if before_day is not None and after_day is not None and after_day <= before_day:
+                    probe_no_new += 1
+                else:
+                    # Có mã mới → không phải holiday
+                    probe_no_new = 0
+
+            if idx == HOLIDAY_PROBE_COUNT and probe_no_new >= HOLIDAY_PROBE_COUNT:
+                holiday_detected = True
+                log.info(
+                    "[DailyRunner] Holiday detected: %d/%d probe tickers had no new data. Stopping.",
+                    probe_no_new, HOLIDAY_PROBE_COUNT,
+                )
+                skipped.append(ticker)
+                break
 
             if is_changed:
                 changed.append(ticker)
@@ -485,6 +592,7 @@ def refresh_market_data_daily(tickers: Optional[List[str]] = None) -> Dict[str, 
             else:
                 skipped.append(ticker)
         except Exception:
+            log.exception("[DailyRunner] Error refreshing %s", ticker)
             failed.append(ticker)
 
     return {
@@ -528,8 +636,11 @@ def save_signals_snapshot(snapshot: Dict[str, Dict[str, Any]]) -> Path:
     return SIGNALS_PATH
 
 
-def run_daily_update(tickers: Optional[List[str]] = None) -> Dict[str, Any]:
-    market = refresh_market_data_daily(tickers=tickers)
+def run_daily_update(
+    tickers: Optional[List[str]] = None,
+    daily_start_hour: int = 9,
+) -> Dict[str, Any]:
+    market = refresh_market_data_daily(tickers=tickers, daily_start_hour=daily_start_hour)
 
     if market.get("holiday_detected"):
         log.info("[DailyRunner] Holiday detected — skipping signal snapshot rebuild.")

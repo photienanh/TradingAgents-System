@@ -79,7 +79,7 @@ START
   ├─► Social Analyst ──(tools)──► Msg Clear
   ├─► News Analyst ───(tools)──► Msg Clear
   ├─► Fundamentals Analyst ──(tools)──► Msg Clear
-  └─► AlphaGPT Analyst (không dùng tools)
+  └─► Alpha Analyst (không dùng tools)
         │
         ▼
   Bull Researcher ◄──────────────────────┐
@@ -184,7 +184,6 @@ persist (SQLite + alpha_library.json)
 │   │   ├── setup.py
 │   │   ├── propagation.py
 │   │   ├── conditional_logic.py
-│   │   ├── reflection.py
 │   │   └── signal_processing.py
 │   └── default_config.py
 │

@@ -13,17 +13,17 @@ def create_neutral_debator(llm):
 
         current_risky_response    = risk_debate_state.get("current_risky_response", "")
         current_safe_response     = risk_debate_state.get("current_safe_response", "")
-        current_alphagpt_response = risk_debate_state.get("current_alphagpt_response", "")
 
         market_research_report = state["market_report"]
         sentiment_report       = state["sentiment_report"]
         news_report            = state["news_report"]
         fundamentals_report    = state["fundamentals_report"]
+        quant_report           = state["quant_report"]
         trader_decision        = state["trader_investment_plan"]
 
-        alphagpt_context = ""
-        if current_alphagpt_response:
-            alphagpt_context = f"\nTín hiệu định lượng AlphaGPT: {sanitize_for_prompt(current_alphagpt_response)}"
+        alpha_context = ""
+        if quant_report:
+            alpha_context = f"\nTín hiệu định lượng Alpha: {sanitize_for_prompt(quant_report)}"
         
         horizon_note = (
             "Chiến lược đang đánh giá là LƯỚT SÓNG NGẮN HẠN (2-5 ngày). "
@@ -42,7 +42,7 @@ def create_neutral_debator(llm):
             "**Trọng tâm phân tích của bạn:**\n"
             "- Luận điểm nào của Risky và Safe có bằng chứng thực sự, luận điểm nào chỉ là suy đoán?\n"
             "- Bức tranh tổng thể từ góc nhìn risk/reward: upside và downside tương quan như thế nào?\n"
-            "- Tín hiệu AlphaGPT nói gì và mức độ tin cậy của nó?\n"
+            "- Tín hiệu Alpha nói gì và mức độ tin cậy của nó?\n"
             "- Điều kiện nào sẽ khiến kịch bản bull hoặc bear đúng?\n"
             "- Có chiến lược nào phù hợp hơn BUY/SELL/HOLD thuần túy không (ví dụ: position sizing, staged entry)?\n\n"
 
@@ -50,7 +50,7 @@ def create_neutral_debator(llm):
             "Nếu bằng chứng rõ ràng nghiêng về một phía, hãy nói thẳng.\n\n"
 
             f"Kế hoạch của Trader:\n{sanitize_for_prompt(trader_decision)}\n"
-            f"{sanitize_for_prompt(alphagpt_context)}\n\n"
+            f"{sanitize_for_prompt(alpha_context)}\n\n"
 
             f"Dữ liệu thị trường: {sanitize_for_prompt(market_research_report)}\n"
             f"Tâm lý: {sanitize_for_prompt(sentiment_report)}\n"
@@ -73,12 +73,10 @@ def create_neutral_debator(llm):
             "risky_history":            risk_debate_state.get("risky_history", ""),
             "safe_history":             risk_debate_state.get("safe_history", ""),
             "neutral_history":          neutral_history + "\n" + argument,
-            "alphagpt_history":         risk_debate_state.get("alphagpt_history", ""),
             "latest_speaker":           "Neutral",
             "current_risky_response":   risk_debate_state.get("current_risky_response", ""),
             "current_safe_response":    risk_debate_state.get("current_safe_response", ""),
             "current_neutral_response": argument,
-            "current_alphagpt_response": current_alphagpt_response,
             "count":                    risk_debate_state["count"] + 1,
         }
         return {"risk_debate_state": new_risk_debate_state}

@@ -2,31 +2,15 @@
 tradingagents/agents/trader/trader.py
 """
 
-import functools
-
 from tradingagents.agents.utils.text_sanitize import sanitize_for_prompt
 
 
-def create_trader(llm, memory):
-    def trader_node(state, name):
-        company_name           = state["company_of_interest"]
-        trade_date             = state.get("trade_date", "N/A")
-        horizon                = state.get("trading_horizon", "short")
-        investment_plan        = state["investment_plan"]
-        market_research_report = state["market_report"]
-        sentiment_report       = state["sentiment_report"]
-        news_report            = state["news_report"]
-        fundamentals_report    = state["fundamentals_report"]
-
-        curr_situation = (
-            f"{market_research_report}\n\n{sentiment_report}\n\n"
-            f"{news_report}\n\n{fundamentals_report}"
-        )
-        past_memories = memory.get_memories(curr_situation, n_matches=2)
-        past_memory_str = (
-            "\n\n".join(r["recommendation"] for r in past_memories)
-            if past_memories else "Không có bài học quá khứ phù hợp."
-        )
+def create_trader(llm):
+    def trader_node(state):
+        company_name    = state["company_of_interest"]
+        trade_date      = state.get("trade_date", "N/A")
+        horizon         = state.get("trading_horizon", "short")
+        investment_plan = state["investment_plan"]
 
         if horizon == "short":
             horizon_sys = (
@@ -36,30 +20,25 @@ def create_trader(llm, memory):
             )
             output_format = (
                 f"### Kế Hoạch Giao Dịch — {sanitize_for_prompt(company_name)} — {trade_date}\n\n"
-
                 "#### Tổng Hợp Tín Hiệu\n"
                 "- **Quant signal**: [hướng, IC, mức độ tin cậy]\n"
                 "- **Research team**: [quyết định và lý do chính]\n"
                 "- **Mức độ đồng thuận**: [đồng thuận / mâu thuẫn, giải thích]\n\n"
-
                 "#### Đề Xuất Hành Động: **[BUY / SELL / HOLD]**\n\n"
-
                 "#### Lý Do\n"
                 "[2-3 lý do cụ thể, ưu tiên bằng chứng kỹ thuật và momentum]\n\n"
-
                 "#### Thông Số Giao Dịch\n"
                 "- Khung nắm giữ dự kiến: [X–Y ngày giao dịch]\n"
                 "- Vùng giá vào lệnh: [giá hoặc khoảng giá cụ thể]\n"
                 "- Mục tiêu chốt lời (T+2 đến T+5): [mức giá hoặc % kỳ vọng]\n"
                 "- Stop-loss: [mức giá hoặc % cắt lỗ tối đa]\n"
                 "- Điều kiện hủy kế hoạch sớm: [catalyst nào khiến thoát ngay]\n\n"
-
                 "#### Rủi Ro Cần Theo Dõi\n"
                 "[2-3 rủi ro quan trọng nhất trong khung ngắn hạn]"
             )
             quant_report = state.get("quant_report", "")
             quant_block = (
-                f"## Quant Signal (AlphaGPT)\n{sanitize_for_prompt(quant_report)}\n\n"
+                f"## Quant Signal (Alpha)\n{sanitize_for_prompt(quant_report)}\n\n"
             ) if quant_report else ""
         else:
             horizon_sys = (
@@ -69,20 +48,15 @@ def create_trader(llm, memory):
             )
             output_format = (
                 f"### Kế Hoạch Giao Dịch — {sanitize_for_prompt(company_name)} — {trade_date}\n\n"
-
                 "#### Tổng Hợp Luận Điểm\n"
                 "- **Luận điểm tích cực chính**: [1-2 điểm mạnh nhất từ dữ liệu]\n"
                 "- **Rủi ro chính**: [1-2 rủi ro đáng lo ngại nhất]\n\n"
-
                 "#### Quyết Định: **[BUY / NOT BUY]**\n\n"
-
                 "#### Lý Do Quyết Định\n"
                 "[2-3 lý do cốt lõi — ưu tiên fundamental, định giá, và catalyst dài hạn]\n\n"
-
                 "#### Điều Kiện Theo Dõi\n"
                 "- Nếu BUY: các mốc xem xét thoát (định giá đạt mục tiêu, luận điểm thay đổi)\n"
                 "- Nếu NOT BUY: điều kiện nào sẽ khiến xem xét lại\n\n"
-
                 "#### Rủi Ro Dài Hạn Cần Theo Dõi\n"
                 "[2-3 rủi ro có thể phá vỡ luận điểm đầu tư]"
             )
@@ -93,15 +67,11 @@ def create_trader(llm, memory):
                 "role": "system",
                 "content": (
                     f"Bạn là Trader — người xây dựng kế hoạch giao dịch chi tiết cho {sanitize_for_prompt(company_name)}.\n\n"
-
                     f"## CHIẾN LƯỢC HIỆN TẠI\n{horizon_sys}\n\n"
-
                     "## CÁCH SỬ DỤNG DỮ LIỆU\n"
                     "Ưu tiên bằng chứng cụ thể từ dữ liệu được cung cấp. "
                     "Khi các nguồn đồng thuận → tự tin hơn. "
                     "Khi mâu thuẫn → phân tích nguyên nhân, không tự động theo một bên nào.\n\n"
-
-                    f"Bài học từ tình huống tương tự: {sanitize_for_prompt(past_memory_str)}"
                 ),
             },
             {
@@ -119,7 +89,6 @@ def create_trader(llm, memory):
         return {
             "messages":               [result],
             "trader_investment_plan": result.content,
-            "sender":                 name,
         }
 
-    return functools.partial(trader_node, name="Trader")
+    return trader_node

@@ -15,7 +15,7 @@ class Propagator:
         self,
         company_name: str,
         trade_date: str,
-        alphagpt_signal: Dict[str, Any] | None = None,
+        alpha_signal: Dict[str, Any] | None = None,
         trading_horizon: str = "short",
     ) -> Dict[str, Any]:
         return {
@@ -23,7 +23,6 @@ class Propagator:
             "company_of_interest": company_name,
             "trade_date":         str(trade_date),
             "trading_horizon":    trading_horizon,
-            "alphagpt_signal":    alphagpt_signal or {},
 
             # ── Analyst reports ────────────────────────────────────────
             "market_report":       "",
@@ -49,12 +48,10 @@ class Propagator:
                 "risky_history":              "",
                 "safe_history":               "",
                 "neutral_history":            "",
-                "alphagpt_history":           "",
                 "latest_speaker":             "",
                 "current_risky_response":     "",
                 "current_safe_response":      "",
                 "current_neutral_response":   "",
-                "current_alphagpt_response":  "",
                 "judge_decision":             "",
                 "count":                      0,
             }),
