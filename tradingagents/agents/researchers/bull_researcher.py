@@ -21,9 +21,9 @@ def create_bull_researcher(llm):
 
         if horizon == "short":
             horizon_instruction = (
-                "Tập trung vào bằng chứng NGẮN HẠN: momentum giá, volume, catalyst sắp tới, "
-                "tín hiệu kỹ thuật ủng hộ tăng giá trong 2-5 ngày. "
-                "Không cần lập luận về giá trị dài hạn nếu không có catalyst ngắn hạn đi kèm."
+                "Đây là tranh luận về cơ hội NGẮN HẠN (2-5 ngày). "
+                "Tập trung vào các bằng chứng cho thấy giá có khả năng tăng trong khung thời gian này hoặc bất kỳ tín hiệu nào từ dữ liệu mà bạn cho là có giá trị. "
+                "Không cần lập luận về giá trị dài hạn nếu không liên quan đến diễn biến ngắn hạn."
             )
             quant_report = state.get("quant_report", "")
             quant_section = (
@@ -32,9 +32,10 @@ def create_bull_researcher(llm):
             ) if quant_report else ""
         else:
             horizon_instruction = (
-                "Tập trung vào bằng chứng DÀI HẠN: chất lượng tăng trưởng, định giá hấp dẫn, "
-                "lợi thế cạnh tranh bền vững, và catalyst trung-dài hạn. "
-                "Momentum ngắn hạn không phải yếu tố quyết định."
+                "Đây là tranh luận về cơ hội ĐẦU TƯ DÀI HẠN. "
+                "Tập trung vào các bằng chứng cho thấy doanh nghiệp có nền tảng tốt, "
+                "tiềm năng tăng trưởng thực sự, hoặc định giá đang ở mức hấp dẫn. "
+                "Dùng bất kỳ góc độ phân tích nào từ dữ liệu mà bạn thấy thuyết phục nhất."
             )
             quant_section = ""
 
@@ -54,7 +55,7 @@ Tài chính doanh nghiệp: {sanitize_for_prompt(fundamentals_report)}
 ---
 
 **Yêu cầu**: {horizon_instruction}
-Xây dựng lập luận BUY mạnh nhất có thể. Dùng bằng chứng cụ thể từ dữ liệu. Phản biện trực tiếp từng điểm của Bear. Thừa nhận điểm yếu nếu có — lập luận trung thực có sức thuyết phục hơn lập luận không thừa nhận hạn chế.
+Đọc toàn bộ dữ liệu, xác định những bằng chứng nào ủng hộ mạnh nhất cho luận điểm BUY và trình bày lập luận của bạn. Phản biện trực tiếp từng điểm của Bear - chỉ ra giả định nào đang được diễn giải quá bi quan hoặc thiếu cơ sở. Thừa nhận điểm yếu nếu có - lập luận trung thực có sức thuyết phục hơn lập luận phủ nhận tất cả rủi ro.
 
 Viết theo phong cách hội thoại tranh luận tự nhiên."""
 

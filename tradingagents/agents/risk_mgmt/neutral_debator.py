@@ -21,46 +21,31 @@ def create_neutral_debator(llm):
         quant_report           = state["quant_report"]
         trader_decision        = state["trader_investment_plan"]
 
-        alpha_context = ""
-        if quant_report:
-            alpha_context = f"\nTín hiệu định lượng Alpha: {sanitize_for_prompt(quant_report)}"
-        
-        horizon_note = (
-            "Chiến lược đang đánh giá là LƯỚT SÓNG NGẮN HẠN (2-5 ngày). "
-            "Tập trung vào rủi ro và cơ hội trong khung thời gian này."
-        ) if horizon == "short" else (
-            "Chiến lược đang đánh giá là ĐẦU TƯ DÀI HẠN. "
-            "Quyết định cuối cùng chỉ là BUY hoặc NOT BUY. "
-            "Không đánh giá biến động ngắn hạn — chỉ rủi ro có thể phá vỡ luận điểm dài hạn."
-        )
+        if horizon == "short":
+            horizon_note = "Đây là tranh luận về chiến lược NGẮN HẠN (2–5 ngày)."
+            alpha_context = (
+                f"\nTín hiệu định lượng (Alpha): {sanitize_for_prompt(quant_report)}\n"
+            ) if quant_report else ""
+        else:
+            horizon_note = "Đây là tranh luận về chiến lược ĐẦU TƯ DÀI HẠN."
+            alpha_context = ""
 
         prompt = (
             f"{horizon_note}\n\n"
-            "Bạn là Neutral Analyst trong nhóm quản lý rủi ro. Vai trò của bạn là đánh giá khách quan — "
-            "không có lập trường mặc định nào. Bạn chỉ ra điểm yếu của CẢ HAI bên và tổng hợp bức tranh toàn cảnh.\n\n"
-
-            "**Trọng tâm phân tích của bạn:**\n"
-            "- Luận điểm nào của Risky và Safe có bằng chứng thực sự, luận điểm nào chỉ là suy đoán?\n"
-            "- Bức tranh tổng thể từ góc nhìn risk/reward: upside và downside tương quan như thế nào?\n"
-            "- Tín hiệu Alpha nói gì và mức độ tin cậy của nó?\n"
-            "- Điều kiện nào sẽ khiến kịch bản bull hoặc bear đúng?\n"
-            "- Có chiến lược nào phù hợp hơn BUY/SELL/HOLD thuần túy không (ví dụ: position sizing, staged entry)?\n\n"
-
-            "**Quan trọng**: Neutral không có nghĩa là luôn chọn HOLD. "
-            "Nếu bằng chứng rõ ràng nghiêng về một phía, hãy nói thẳng.\n\n"
-
+            "Bạn là Neutral Analyst trong nhóm quản lý rủi ro. Vai trò của bạn là đánh giá khách quan, "
+            "không có lập trường mặc định nào. Bạn chỉ ra điểm yếu của cả hai bên và tổng hợp bức tranh toàn cảnh.\n\n"
+            "Đọc toàn bộ dữ liệu, đánh giá luận điểm nào có bằng chứng thực sự và luận điểm nào chỉ là suy diễn. "
+            "Neutral không có nghĩa là luôn chọn HOLD - nếu bằng chứng nghiêng rõ về một phía, hãy nói thẳng.\n\n"
             f"Kế hoạch của Trader:\n{sanitize_for_prompt(trader_decision)}\n"
-            f"{sanitize_for_prompt(alpha_context)}\n\n"
-
-            f"Dữ liệu thị trường: {sanitize_for_prompt(market_research_report)}\n"
-            f"Tâm lý: {sanitize_for_prompt(sentiment_report)}\n"
+            f"{alpha_context}\n\n"
+            f"Phân tích thị trường: {sanitize_for_prompt(market_research_report)}\n"
+            f"Tâm lý & mạng xã hội: {sanitize_for_prompt(sentiment_report)}\n"
             f"Tin tức: {sanitize_for_prompt(news_report)}\n"
-            f"Tài chính doanh nghiệp: {sanitize_for_prompt(fundamentals_report)}\n"
-            f"Lịch sử tranh luận: {sanitize_for_prompt(history)}\n"
+            f"Tài chính doanh nghiệp: {sanitize_for_prompt(fundamentals_report)}\n\n"
+            f"## Lịch sử tranh luận\n{sanitize_for_prompt(history)}\n\n"
             f"Risky Analyst: {sanitize_for_prompt(current_risky_response)}\n"
             f"Safe Analyst: {sanitize_for_prompt(current_safe_response)}\n\n"
-
-            "Đánh giá khách quan cả hai bên. Chỉ ra điểm yếu cụ thể của mỗi bên. "
+            "Đánh giá khách quan cả hai bên. Chỉ ra điểm yếu và điểm mạnh cụ thể của mỗi bên. "
             "Tổng hợp bức tranh risk/reward một cách trung thực. "
             "Viết theo phong cách hội thoại tự nhiên."
         )

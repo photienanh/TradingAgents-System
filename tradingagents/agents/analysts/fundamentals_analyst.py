@@ -7,7 +7,7 @@ from tradingagents.dataflows.config import get_config
 _HORIZON_CTX_FUNDAMENTALS = {
     "short": (
         "## KHUNG THỜI GIAN: LƯỚT SÓNG NGẮN HẠN\n"
-        "Fundamental ít ảnh hưởng đến giá trong 2-5 ngày — chỉ cần nắm:\n"
+        "Fundamental ít ảnh hưởng đến giá trong 2-5 ngày - chỉ cần nắm:\n"
         "- Có sự kiện tài chính sắp diễn ra không (công bố Kết quả kinh doanh, chia cổ tức, Đại hội cổ đông)?\n"
         "- Sức khỏe tài chính cơ bản có ổn không (tránh rủi ro vỡ nợ/thanh khoản)?\n"
         "- Có bất thường tài chính nào gần đây không?\n"
@@ -50,7 +50,7 @@ Công cụ sử dụng:
 
 ## Cấu trúc báo cáo (BẮT BUỘC tuân theo, có thể thêm bảng số liệu nếu có)
 
-### Phân Tích Tài Chính Doanh Nghiệp — {ticker} — {current_date}
+### Phân Tích Tài Chính Doanh Nghiệp - {ticker} - {current_date}
 
 #### 1. <Tên đề mục>
 
@@ -65,7 +65,7 @@ Công cụ sử dụng:
                     "system",
                     "Bạn là Fundamentals Analyst đang thu thập và phân tích dữ liệu tài chính."
                     " Hãy dùng các công cụ để lấy đầy đủ dữ liệu tài chính của doanh nghiệp."
-                    " Nhiệm vụ của bạn là cung cấp phân tích fundamental khách quan, chi tiết — KHÔNG đưa ra khuyến nghị BUY/SELL/HOLD."
+                    " Nhiệm vụ của bạn là cung cấp phân tích fundamental khách quan, chi tiết - KHÔNG đưa ra khuyến nghị BUY/SELL/HOLD."
                     " Bạn có quyền truy cập: {tool_names}.\n{system_message}"
                     " Ngày hiện tại: {current_date}. Mã cần phân tích: {ticker}",
                 ),

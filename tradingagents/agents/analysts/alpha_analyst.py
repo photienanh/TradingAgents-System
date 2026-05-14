@@ -10,7 +10,7 @@ SYSTEM_PROMPT = """Bạn là Senior Quantitative Analyst cho cổ phiếu Việt
 Nhiệm vụ của bạn là viết báo cáo phân tích định lượng chuyên sâu cho một mã cổ phiếu,
 dựa trên kết quả alpha signals đã được kiểm chứng trên out-of-sample data.
 Phong cách viết:
-- Chuyên nghiệp nhưng không khô khan — viết như đang thuyết phục một portfolio manager
+- Chuyên nghiệp nhưng không khô khan - viết như đang thuyết phục một portfolio manager
 - Giải thích ý nghĩa kinh tế, không chỉ liệt kê số liệu
 - Khi một chỉ số tốt, giải thích TẠI SAO nó tốt và điều đó có nghĩa gì với mã này
 - Khi một chỉ số xấu, giải thích RỦI RO cụ thể và mức độ nghiêm trọng
@@ -18,10 +18,10 @@ Phong cách viết:
 - Đầu ra phải hữu ích cho Bull/Bear researcher khi tranh luận
 
 Cấu trúc báo cáo BẮT BUỘC (giữ đúng headers):
-## Quant Analyst Report — {ticker} — {trade_date}
+## Quant Analyst Report - {ticker} - {trade_date}
 ### **1. Tổng quan tín hiệu**
 ### **2. Chất lượng alpha**
-### **3. Phân tích từng alpha**
+### **3. Phân tích từng alpha** (chỉ cần phân tích một số alpha nổi bật nhất, không cần phân tích tất cả)
 ### **4. Đánh giá rủi ro / tích cực**
 ### **5. Kết luận định lượng**
 ### **Các alpha được sử dụng:** <Viết lại các công thức alpha (chỉ liệt kê formula bằng gạch đầu dòng, không viết gì thêm)>
@@ -41,11 +41,11 @@ def _fmt(v: Optional[float], ndigits: int = 4) -> str:
 
 
 def _build_raw_data(ticker: str, trade_date: str) -> Dict[str, Any]:
-    top_alphas = load_alpha_definitions(limit=5)
-    signal = compute_ticker_signal(ticker=ticker, top_alphas=top_alphas)
+    alphas = load_alpha_definitions()
+    signal = compute_ticker_signal(ticker=ticker, top_alphas=alphas)
 
     rows: List[Dict[str, Any]] = []
-    for i, a in enumerate(top_alphas, start=1):
+    for i, a in enumerate(alphas, start=1):
         rows.append(
             {
                 "rank": i,
@@ -113,10 +113,10 @@ def _build_llm_prompt(raw: Dict[str, Any]) -> str:
 
 def _fallback_plain_report(raw: Dict[str, Any]) -> str:
     lines = [
-        f"## Quant Analyst Report — {raw['ticker']} — {raw['trade_date']}",
+        f"## Quant Analyst Report - {raw['ticker']} - {raw['trade_date']}",
         "### 1. Tổng quan tín hiệu hôm nay",
         f"Bias hiện tại: (side={raw['side'].upper()}, signal_today={_fmt(raw.get('signal_today'), 3)}).",
-        "### 2. Chất lượng top alpha",
+        "### 2. Chất lượng các alpha",
         (
             f"Tổng hợp: Avg IC={_fmt(raw.get('ic_oos'))}, "
             f"Avg Sharpe={_fmt(raw.get('sharpe_oos'), 3)}, "
@@ -169,7 +169,7 @@ def create_alpha_analyst(llm):
             return {
                 "messages": [],
                 "quant_report": (
-                    f"## Quant Analyst Report — {ticker} — {trade_date}\n\n"
+                    f"## Quant Analyst Report - {ticker} - {trade_date}\n\n"
                     f"Không thể tạo tín hiệu định lượng: {raw['error']}"
                 ),
             }

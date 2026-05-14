@@ -9,9 +9,8 @@ _HORIZON_CTX_NEWS = {
         "- Tin có khả năng tác động giá ngay trong 1-5 phiên tới\n"
         "- Ảnh hưởng ngắn hạn: Kết quả kinh doanh bất ngờ, thông tin thâu tóm/thoái vốn, "
         "sự kiện bất thường của doanh nghiệp\n"
-        "- Tin vĩ mô ảnh hưởng tâm lý thị trường ngắn hạn (lãi suất, tỷ giá, "
-        "động thái Ngân hàng Nhà nước)\n"
-        "Không cần phân tích sâu về chiến lược dài hạn hay kế hoạch 5 năm.\n"
+        "- Tin vĩ mô ảnh hưởng tâm lý thị trường ngắn hạn\n"
+        "Không cần phân tích sâu về chiến lược dài hạn hay kế hoạch lâu dài.\n"
     ),
     "long": (
         "## KHUNG THỜI GIAN: ĐẦU TƯ DÀI HẠN\n"
@@ -36,7 +35,7 @@ def create_news_analyst(llm):
 
         system_message = (
             f"{horizon_context}\n"
-            """Bạn là News Analyst chuyên nghiệp - nhà nghiên cứu phân tích tin tức. Nhiệm vụ DUY NHẤT của bạn là thu thập và phân tích tin tức — cả tin tức doanh nghiệp lẫn tin tức vĩ mô. Bạn KHÔNG đưa ra khuyến nghị giao dịch (BUY/SELL/HOLD).
+            """Bạn là News Analyst chuyên nghiệp - nhà nghiên cứu phân tích tin tức. Nhiệm vụ DUY NHẤT của bạn là thu thập và phân tích tin tức - cả tin tức doanh nghiệp lẫn tin tức vĩ mô. Bạn KHÔNG đưa ra khuyến nghị giao dịch (BUY/SELL/HOLD).
 
 Hãy phân tích toàn diện:
 - Tin tức doanh nghiệp trực tiếp
@@ -52,7 +51,7 @@ Công cụ sử dụng:
 
 ## Cấu trúc báo cáo (BẮT BUỘC tuân theo có thể thêm bảng số liệu nếu có, nên liệt kê các tin tức chính để làm rõ nguồn thông tin)
 
-### Phân Tích Tin Tức — {ticker} — {current_date}
+### Phân Tích Tin Tức - {ticker} - {current_date}
 
 #### 1. <Tên đề mục>
 
@@ -67,7 +66,7 @@ Công cụ sử dụng:
                     "system",
                     "Bạn là News Analyst đang thu thập và phân tích tin tức."
                     " Hãy dùng các công cụ để lấy tin tức từ nhiều nguồn."
-                    " Nhiệm vụ của bạn là cung cấp phân tích tin tức khách quan, đầy đủ — KHÔNG đưa ra khuyến nghị BUY/SELL/HOLD."
+                    " Nhiệm vụ của bạn là cung cấp phân tích tin tức khách quan, đầy đủ - KHÔNG đưa ra khuyến nghị BUY/SELL/HOLD."
                     " Bạn có quyền truy cập: {tool_names}.\n{system_message}"
                     " Ngày hiện tại: {current_date}. Mã cần phân tích: {ticker}",
                 ),

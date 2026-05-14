@@ -5,7 +5,7 @@ _HORIZON_CTX_SOCIAL = {
     "short": (
         "## KHUNG THỜI GIAN: LƯỚT SÓNG NGẮN HẠN\n"
         "Tập trung tâm lý thị trường trong 3-7 ngày gần nhất:\n"
-        "- Mức độ FOMO/FUD hiện tại và xu hướng thay đổi so với tuần trước\n"
+        "- Mức độ FOMO/FUD hiện tại và xu hướng thời gian gần đây\n"
         "- Các luồng thảo luận nóng, tin đồn đang lan truyền\n"
         "- Sự kiện nào đang được nhà đầu tư cá nhân chú ý\n"
         "- Dấu hiệu phân phối hay tích lũy qua quan sát diễn đàn\n"
@@ -51,7 +51,7 @@ Dùng công cụ:
 
 ## Cấu trúc báo cáo (BẮT BUỘC tuân theo, có thể thêm bảng số liệu nếu có)
 
-### Phân Tích Tâm Lý & Mạng Xã Hội — {ticker} — {current_date}
+### Phân Tích Tâm Lý & Mạng Xã Hội - {ticker} - {current_date}
 
 #### 1. <Tên đề mục>
 
@@ -66,7 +66,7 @@ Dùng công cụ:
                     "system",
                     "Bạn là Social Media & Sentiment Analyst đang thu thập dữ liệu tâm lý thị trường."
                     " Hãy dùng các công cụ để lấy dữ liệu diễn đàn và tin tức theo mã."
-                    " Nhiệm vụ của bạn là cung cấp phân tích sentiment khách quan — KHÔNG đưa ra khuyến nghị BUY/SELL/HOLD."
+                    " Nhiệm vụ của bạn là cung cấp phân tích sentiment khách quan - KHÔNG đưa ra khuyến nghị BUY/SELL/HOLD."
                     " Bạn có quyền truy cập: {tool_names}.\n{system_message}"
                     " Ngày hiện tại: {current_date}. Mã cần phân tích: {ticker}",
                 ),

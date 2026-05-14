@@ -12,70 +12,43 @@ def create_research_manager(llm):
 
 
         if horizon == "short":
-            decision_criteria = (
-                f"## TIÊU CHUẨN QUYẾT ĐỊNH — LƯỚT SÓNG NGẮN HẠN\n"
-                "- **BUY**: Có catalyst và momentum rõ ràng hỗ trợ tăng giá trong 2-5 ngày tới\n"
-                "- **SELL**: Rủi ro giảm giá ngắn hạn vượt trội, momentum tiêu cực hoặc tin xấu sắp tác động\n"
-                "- **HOLD**: Tín hiệu trái chiều, chưa đủ catalyst để vào lệnh\n\n"
-
-                f"## YÊU CẦU OUTPUT\n"
-                f"### Quyết Định Nhóm Nghiên Cứu — {ticker} — {trade_date}\n\n"
-
-                "#### Tóm Tắt Tranh Luận\n"
-                "**Bull:** [Luận điểm mạnh nhất về momentum/catalyst ngắn hạn]\n"
-                "**Bear:** [Rủi ro/downside cụ thể trong 2-5 ngày tới]\n\n"
-
-                "#### Đánh Giá\n"
-                "[2-3 câu phân tích, ưu tiên tín hiệu kỹ thuật và ảnh hưởng ngắn hạn]\n\n"
-
-                "#### Quyết Định: **[BUY / SELL / HOLD]**\n\n"
-
-                "#### Kế Hoạch Hành Động\n"
-                "- Lý do chính: [1-2 lý do quyết định]\n"
-                "- Điều kiện thoát sớm: [tín hiệu nào khiến đóng vị thế ngay]\n"
-                "- Rủi ro ngắn hạn cần theo dõi: [1-2 rủi ro quan trọng nhất]"
+            horizon_note = (
+                "Đây là quyết định cho chiến lược NGẮN HẠN (2–5 ngày). "
+                "Ba quyết định hợp lệ: BUY, SELL, HOLD."
             )
         else:
-            decision_criteria = (
-                f"## TIÊU CHUẨN QUYẾT ĐỊNH — ĐẦU TƯ DÀI HẠN\n"
-                "- **BUY**: Có luận điểm tăng trưởng rõ ràng, định giá hợp lý, rủi ro được kiểm soát\n"
-                "- **NOT BUY**: Thiếu biên an toàn, luận điểm yếu, hoặc rủi ro vượt tiềm năng\n"
-                "Không có lựa chọn thứ ba — nếu không đủ chắc chắn thì kết quả là NOT BUY.\n\n"
-
-                f"## YÊU CẦU OUTPUT\n"
-                f"### Quyết Định Nhóm Nghiên Cứu — {ticker} — {trade_date}\n\n"
-
-                "#### Tóm Tắt Tranh Luận\n"
-                "**Bull:** [Luận điểm tăng trưởng và lý do định giá hợp lý]\n"
-                "**Bear:** [Rủi ro cấu trúc hoặc định giá đang quá cao]\n\n"
-
-                "#### Đánh Giá\n"
-                "[2-3 câu, ưu tiên fundamental và định giá dài hạn]\n\n"
-
-                "#### Quyết Định: **[BUY / NOT BUY]**\n\n"
-
-                "#### Luận Điểm Cốt Lõi\n"
-                "- Luận điểm chính: [lý do nền tảng]\n"
-                "- Điều kiện làm sai luận điểm: [rủi ro có thể phá vỡ luận điểm]\n"
-                "- Mốc xem xét lại: [khi nào cần đánh giá lại]"
+            horizon_note = (
+                "Đây là quyết định cho chiến lược ĐẦU TƯ DÀI HẠN. "
+                "Hai quyết định hợp lệ: BUY hoặc NOT BUY."
             )
 
+        decision_choices = "BUY/SELL/HOLD" if horizon == "short" else "BUY hoặc NOT BUY"
+
         prompt = (
-            f"Bạn là Research Manager — người tổng hợp kết quả tranh luận và đưa ra quyết định đầu tư.\n\n"
+            f"Bạn là Research Manager - người tổng hợp cuộc tranh luận giữa Bull và Bear để đưa ra quyết định đầu tư cho {ticker}.\n\n"
 
-            "## NGUYÊN TẮC TRUNG LẬP (BẮT BUỘC)\n"
-            "Chỉ dữ liệu và lập luận quyết định kết quả. "
-            "Không có hướng nào là 'mặc định' hay 'an toàn hơn'.\n\n"
+            f"## BỐI CẢNH\n{horizon_note}\n\n"
 
-            "## QUY TRÌNH ĐÁNH GIÁ\n"
-            "1. Xác định luận điểm mạnh nhất của Bull và luận điểm mạnh nhất của Bear\n"
-            "2. Đánh giá chất lượng bằng chứng: dữ liệu cụ thể > ý kiến chủ quan\n"
-            "3. Xét bài học từ các tình huống tương tự trong quá khứ\n"
-            "4. Đưa ra quyết định dựa trên bên có bằng chứng thuyết phục hơn\n\n"
+            "## NGUYÊN TẮC (BẮT BUỘC)\n"
+            "Chỉ chất lượng bằng chứng quyết định kết quả - không có chiều hướng nào là 'mặc định' hay 'an toàn hơn'.\n"
 
-            f"Lịch sử tranh luận:\n{sanitize_for_prompt(history)}\n\n"
+            f"## LỊCH SỬ TRANH LUẬN\n{sanitize_for_prompt(history)}\n\n"
 
-            f"{decision_criteria}"
+            "---\n"
+            f"## YÊU CẦU OUTPUT\n\n"
+            f"### Quyết Định Nhóm Nghiên Cứu - {ticker} - {trade_date}\n\n"
+
+            "#### Tóm Tắt\n"
+            "**Bull:** [Luận điểm có bằng chứng thuyết phục nhất]\n"
+            "**Bear:** [Luận điểm có bằng chứng thuyết phục nhất]\n\n"
+
+            "#### Đánh Giá\n"
+            "[2–3 câu: bên nào có bằng chứng thuyết phục hơn và tại sao]\n\n"
+
+            f"#### Quyết Định: **{decision_choices}**\n\n"
+
+            "#### Lý Do\n"
+            "[Lý do dẫn đến quyết định trên, dựa trên bằng chứng từ tranh luận]"
         )
 
         response = llm.invoke(prompt)

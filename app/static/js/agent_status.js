@@ -27,7 +27,7 @@ const ANALYST_TOOLS = {
         desc: 'Phân tích tâm lý & mạng xã hội',
         tools: [
             { name: 'get_f247_forum_posts(ticker, curr_date, look_back_days, max_threads, max_posts_per_thread)', desc: 'Thu thập thảo luận F247 theo mã cổ phiếu.' },
-            { name: 'get_ticker_news(ticker, curr_date, look_back_days, max_items)', desc: 'Tổng hợp tin xã hội theo mã từ Google News.' },
+            { name: 'get_ticker_news(ticker, curr_date, look_back_days, max_items)', desc: 'Tổng hợp tin xã hội theo mã từ F247 và Google News.' },
         ],
     },
     'News Analyst': {

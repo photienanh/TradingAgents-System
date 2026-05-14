@@ -21,9 +21,10 @@ def create_bear_researcher(llm):
 
         if horizon == "short":
             horizon_instruction = (
-                "Tập trung rủi ro NGẮN HẠN: tín hiệu kỹ thuật yếu, volume giảm, "
-                "tin xấu sắp tác động, hoặc resistance mạnh phía trên. "
-                "Downside trong 2-5 ngày phải cụ thể và có bằng chứng."
+                "Đây là tranh luận về cơ hội NGẮN HẠN (2-5 ngày). "
+                "Tập trung vào các bằng chứng cho thấy giá có khả năng giảm hoặc không tăng trong khung thời gian này, ví dụ như: "
+                "áp lực bán, tín hiệu yếu, tin xấu sắp tác động, hoặc bất kỳ dữ liệu nào bạn cho là đáng lo ngại. "
+                "Không cần lập luận về rủi ro dài hạn nếu không liên quan đến diễn biến ngắn hạn."
             )
             quant_report = state.get("quant_report", "")
             quant_section = (
@@ -32,9 +33,10 @@ def create_bear_researcher(llm):
             ) if quant_report else ""
         else:
             horizon_instruction = (
-                "Tập trung rủi ro DÀI HẠN: định giá quá cao, tăng trưởng chậm lại, "
-                "rủi ro ngành, nợ xấu, hoặc lợi thế cạnh tranh đang suy yếu. "
-                "Biến động ngắn hạn không phải luận điểm chính."
+                "Đây là tranh luận về cơ hội ĐẦU TƯ DÀI HẠN. "
+                "Tập trung vào các bằng chứng như: doanh nghiệp có rủi ro cấu trúc, "
+                "định giá không hợp lý, tăng trưởng thiếu bền vững, hoặc bất kỳ góc độ nào từ dữ liệu "
+                "mà bạn thấy là luận điểm AVOID thuyết phục nhất."
             )
             quant_section = ""
 
@@ -55,13 +57,8 @@ Tài chính doanh nghiệp: {sanitize_for_prompt(fundamentals_report)}
 ---
 
 **Yêu cầu**: {horizon_instruction}
-Xây dựng lập luận SHORT/AVOID mạnh nhất có thể. Tập trung vào:
-- Rủi ro cụ thể và có bằng chứng (không phải lo ngại chung chung)
-- Điểm yếu trong lập luận của Bull: giả định nào là sai, số liệu nào đang bị diễn giải lạc quan quá mức
-- Tín hiệu tiêu cực từ dữ liệu tài chính, xu hướng thị trường, hoặc tin bất lợi gần đây
-- Chi phí cơ hội: tại sao capital nên được deploy ở nơi khác
 
-Phản biện trực tiếp từng điểm của Bull. Thừa nhận điểm mạnh của họ nếu có — lập luận trung thực có sức thuyết phục hơn.
+Đọc toàn bộ dữ liệu, xác định những bằng chứng nào ủng hộ mạnh nhất cho luận điểm AVOID/SHORT, và trình bày lập luận của bạn. Phản biện trực tiếp các điểm Bull đã nêu - chỉ ra luận điểm nào đang được diễn giải quá lạc quan hoặc thiếu cơ sở. Thừa nhận điểm mạnh của Bull khi có - lập luận trung thực có sức thuyết phục hơn lập luận phủ nhận tất cả.
 
 Viết theo phong cách hội thoại tranh luận tự nhiên."""
 

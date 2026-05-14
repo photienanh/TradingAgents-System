@@ -21,50 +21,35 @@ def create_safe_debator(llm):
         quant_report           = state["quant_report"]
         trader_decision        = state["trader_investment_plan"]
 
-        alpha_context = ""
-        if quant_report:
-            alpha_context = f"\nTín hiệu định lượng Alpha: {sanitize_for_prompt(quant_report)}"
-
-        horizon_note = (
-            "Chiến lược đang đánh giá là LƯỚT SÓNG NGẮN HẠN (2-5 ngày). "
-            "Tập trung vào rủi ro và cơ hội trong khung thời gian này."
-        ) if horizon == "short" else (
-            "Chiến lược đang đánh giá là ĐẦU TƯ DÀI HẠN. "
-            "Quyết định cuối cùng chỉ là BUY hoặc NOT BUY. "
-            "Không đánh giá biến động ngắn hạn — chỉ rủi ro có thể phá vỡ luận điểm dài hạn."
-        )
+        if horizon == "short":
+            horizon_note = "Đây là tranh luận về chiến lược NGẮN HẠN (2–5 ngày)."
+            alpha_context = (
+                f"\nTín hiệu định lượng (Alpha): {sanitize_for_prompt(quant_report)}\n"
+            ) if quant_report else ""
+        else:
+            horizon_note = "Đây là tranh luận về chiến lược ĐẦU TƯ DÀI HẠN."
+            alpha_context = ""
 
         prompt = (
             f"{horizon_note}\n\n"
-            "Bạn là Safe/Conservative Analyst trong nhóm quản lý rủi ro. Vai trò của bạn là đại diện cho góc nhìn 'downside-focused': "
-            "nhận diện các rủi ro bị đánh giá thấp, bảo vệ danh mục khỏi thua lỗ không cần thiết.\n\n"
-
-            "**Trọng tâm phân tích của bạn:**\n"
-            "- Các rủi ro cụ thể và có bằng chứng (không phải lo ngại chung chung)\n"
-            "- Downside scenario: nếu điều gì đó đi sai, mức độ tổn thất là bao nhiêu?\n"
-            "- Giả định lạc quan nào trong kế hoạch của Trader có thể không đúng?\n"
-            "- Điểm yếu trong lập luận của Risky Analyst\n"
-            "- Nếu tín hiệu Alpha cho thấy tín hiệu yếu hoặc short, đây là bằng chứng định lượng hỗ trợ thận trọng\n\n"
-
-            "**Lưu ý quan trọng**: Nhiệm vụ của bạn là kiểm tra tính vững chắc của kế hoạch — "
-            "không phải tự động phản đối BUY hay ủng hộ HOLD. "
-            "Nếu kế hoạch Trader là SELL, bạn kiểm tra xem SELL có thực sự justified không.\n\n"
-
+            "Bạn là Safe Analyst trong nhóm quản lý rủi ro. Vai trò của bạn là đại diện cho góc nhìn downside: "
+            "nhận diện các rủi ro bị đánh giá thấp, kiểm tra tính vững chắc của kế hoạch, bảo vệ danh mục khỏi thua lỗ không cần thiết.\n\n"
+            "Đọc toàn bộ dữ liệu và tự xác định bằng chứng nào cho thấy kế hoạch đang chứa rủi ro thực sự. "
+            "Nhiệm vụ của bạn là kiểm tra, không phải tự động phản đối BUY hay ủng hộ HOLD. "
+            "Nếu kế hoạch Trader là SELL, hãy kiểm tra xem SELL có thực sự hợp lý hay không.\n\n"
             f"Kế hoạch của Trader:\n{sanitize_for_prompt(trader_decision)}\n"
-            f"{sanitize_for_prompt(alpha_context)}\n\n"
-
-            f"Dữ liệu thị trường: {sanitize_for_prompt(market_research_report)}\n"
-            f"Tâm lý: {sanitize_for_prompt(sentiment_report)}\n"
+            f"{alpha_context}"
+            f"Phân tích thị trường: {sanitize_for_prompt(market_research_report)}\n"
+            f"Tâm lý & mạng xã hội: {sanitize_for_prompt(sentiment_report)}\n"
             f"Tin tức: {sanitize_for_prompt(news_report)}\n"
-            f"Tài chính doanh nghiệp: {sanitize_for_prompt(fundamentals_report)}\n"
-            f"Lịch sử tranh luận: {sanitize_for_prompt(history)}\n"
+            f"Tài chính doanh nghiệp: {sanitize_for_prompt(fundamentals_report)}\n\n"
+            f"## Lịch sử tranh luận\n{sanitize_for_prompt(history)}\n\n"
             f"Risky Analyst: {sanitize_for_prompt(current_risky_response)}\n"
             f"Neutral Analyst: {sanitize_for_prompt(current_neutral_response)}\n\n"
-
             "Phản biện trực tiếp lập luận của Risky Analyst. "
-            "Chỉ ra cụ thể đâu là rủi ro thực sự (không phải rủi ro lý thuyết). "
-            "Thừa nhận điểm mạnh của Risky nếu có. "
-            "Viết theo phong cách hội thoại tự nhiên."
+            "Chỉ ra đâu là rủi ro thực sự có bằng chứng, không phải rủi ro lý thuyết. "
+            "Thừa nhận điểm mạnh của Risky khi có. "
+            "Viết theo phong cách hội thoại tranh luận tự nhiên."
         )
 
         response = llm.invoke(prompt)
