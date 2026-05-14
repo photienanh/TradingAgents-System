@@ -1,12 +1,10 @@
-from langchain_openai import ChatOpenAI
+import re
 
 
 class SignalProcessor:
     """Processes trading signals to extract actionable decisions."""
 
-    def __init__(self, quick_thinking_llm: ChatOpenAI):
-        """Initialize with an LLM for processing."""
-        self.quick_thinking_llm = quick_thinking_llm
+    _DECISIONS = ["NOT BUY", "SELL", "BUY", "HOLD"]
 
     def process_signal(self, full_signal: str) -> str:
         """
@@ -18,23 +16,8 @@ class SignalProcessor:
         Returns:
             Extracted decision (NOT BUY, BUY, SELL, or HOLD)
         """
-        messages = [
-            (
-                "system",
-                "Bạn là trợ lý phân tích quyết định đầu tư từ báo cáo của các chuyên gia. Nhiệm vụ của bạn là trích xuất duy nhất một quyết định giao dịch: SELL, BUY, NOT BUY hoặc HOLD. Chỉ trả về đúng một trong 4 giá trị SELL, BUY, NOT BUY hoặc HOLD; không thêm bất kỳ nội dung nào khác.",
-            ),
-            ("human", full_signal),
-        ]
-
-        content = self.quick_thinking_llm.invoke(messages).content
-        if isinstance(content, str):
-            return content
-        if isinstance(content, list):
-            normalized_parts = []
-            for item in content:
-                if isinstance(item, str):
-                    normalized_parts.append(item)
-                elif isinstance(item, dict):
-                    normalized_parts.append(str(item.get("text", "")))
-            return "".join(normalized_parts).strip()
-        return str(content)
+        text = full_signal.upper()
+        for decision in self._DECISIONS:
+            if re.search(rf'\b{re.escape(decision)}\b', text):
+                return decision
+        return "HOLD"

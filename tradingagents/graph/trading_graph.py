@@ -111,7 +111,7 @@ class TradingAgentsGraph:
         )
 
         self.propagator      = Propagator()
-        self.signal_processor = SignalProcessor(self.quick_thinking_llm)
+        self.signal_processor = SignalProcessor()
 
         self.curr_state       = None
         self.ticker           = None
