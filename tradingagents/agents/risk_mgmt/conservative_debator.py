@@ -19,10 +19,12 @@ def create_safe_debator(llm):
         news_report            = state["news_report"]
         fundamentals_report    = state["fundamentals_report"]
         quant_report           = state["quant_report"]
+
+        research_decision      = state["investment_plan"]
         trader_decision        = state["trader_investment_plan"]
 
         if horizon == "short":
-            horizon_note = "Đây là tranh luận về chiến lược NGẮN HẠN (2–5 ngày)."
+            horizon_note = "Đây là tranh luận về chiến lược NGẮN HẠN (2-5 ngày)."
             alpha_context = (
                 f"\nTín hiệu định lượng (Alpha): {sanitize_for_prompt(quant_report)}\n"
             ) if quant_report else ""
@@ -31,24 +33,29 @@ def create_safe_debator(llm):
             alpha_context = ""
 
         prompt = (
-            f"{horizon_note}\n\n"
+            f"{horizon_note}\n\n"    
             "Bạn là Safe Analyst trong nhóm quản lý rủi ro. Vai trò của bạn là đại diện cho góc nhìn downside: "
-            "nhận diện các rủi ro bị đánh giá thấp, kiểm tra tính vững chắc của kế hoạch, bảo vệ danh mục khỏi thua lỗ không cần thiết.\n\n"
-            "Đọc toàn bộ dữ liệu và tự xác định bằng chứng nào cho thấy kế hoạch đang chứa rủi ro thực sự. "
-            "Nhiệm vụ của bạn là kiểm tra, không phải tự động phản đối BUY hay ủng hộ HOLD. "
-            "Nếu kế hoạch Trader là SELL, hãy kiểm tra xem SELL có thực sự hợp lý hay không.\n\n"
+            "nhận diện các rủi ro bị đánh giá thấp, kiểm tra tính vững chắc của kế hoạch, bảo vệ danh mục khỏi thua lỗ không cần thiết.\n"
+            "Nhiệm vụ của bạn là bảo vệ danh mục đầu tư bằng cách ĐÁNH GIÁ LẠI TOÀN BỘ kế hoạch giao dịch:\n"
+            "1. Về Định Hướng (Research Manager): Quyết định giao dịch có đang quá lạc quan/chủ quan không?\n"
+            "2. Về Thực Thi (Trader): Các tham số vào lệnh đã hợp lý chưa? Có mạo hiểm không nếu thực thi theo kế hoạch này?\n\n"
+            
+            f"## Kế Hoạch Định Hướng từ Research:\n{sanitize_for_prompt(research_decision)}\n"
             f"Kế hoạch của Trader:\n{sanitize_for_prompt(trader_decision)}\n"
             f"{alpha_context}"
             f"Phân tích thị trường: {sanitize_for_prompt(market_research_report)}\n"
             f"Tâm lý & mạng xã hội: {sanitize_for_prompt(sentiment_report)}\n"
             f"Tin tức: {sanitize_for_prompt(news_report)}\n"
             f"Tài chính doanh nghiệp: {sanitize_for_prompt(fundamentals_report)}\n\n"
-            f"## Lịch sử tranh luận\n{sanitize_for_prompt(history)}\n\n"
+            f"## Lịch sử tranh luận\n{sanitize_for_prompt(history)}\n"
             f"Risky Analyst: {sanitize_for_prompt(current_risky_response)}\n"
             f"Neutral Analyst: {sanitize_for_prompt(current_neutral_response)}\n\n"
+            
             "Phản biện trực tiếp lập luận của Risky Analyst. "
             "Chỉ ra đâu là rủi ro thực sự có bằng chứng, không phải rủi ro lý thuyết. "
             "Thừa nhận điểm mạnh của Risky khi có. "
+            "Nếu định hướng của Research Manager sai lầm, hãy đề xuất Quyết định giao dịch thay thế. "
+            "Nếu định hướng đúng nhưng Trader đưa điểm mua xấu, hãy yêu cầu thắt chặt tham số vào lệnh."
             "Viết theo phong cách hội thoại tranh luận tự nhiên."
         )
 

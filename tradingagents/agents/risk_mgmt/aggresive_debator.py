@@ -19,10 +19,12 @@ def create_risky_debator(llm):
         news_report            = state["news_report"]
         fundamentals_report    = state["fundamentals_report"]
         quant_report           = state["quant_report"]
+
+        research_decision      = state["investment_plan"]
         trader_decision        = state["trader_investment_plan"]
 
         if horizon == "short":
-            horizon_note = "Đây là tranh luận về chiến lược NGẮN HẠN (2–5 ngày)."
+            horizon_note = "Đây là tranh luận về chiến lược NGẮN HẠN (2-5 ngày)."
             alpha_context = (
                 f"\nTín hiệu định lượng (Alpha): {sanitize_for_prompt(quant_report)}\n"
             ) if quant_report else ""
@@ -33,19 +35,26 @@ def create_risky_debator(llm):
         prompt = (
             f"{horizon_note}\n\n"
             "Bạn là Risky Analyst trong nhóm quản lý rủi ro. Vai trò của bạn là đại diện cho góc nhìn upside: "
-            "nhận diện và bảo vệ các cơ hội lợi nhuận, phản biện những lập luận quá thận trọng dẫn đến bỏ lỡ cơ hội.\n\n"
-            "Đọc toàn bộ dữ liệu và tự xác định bằng chứng nào ủng hộ mạnh nhất cho luận điểm của bạn.\n\n"
+            "nhận diện và bảo vệ các cơ hội lợi nhuận, phản biện những lập luận quá thận trọng dẫn đến bỏ lỡ cơ hội.\n"
+            "Nhiệm vụ của bạn là BẢO VỆ CƠ HỘI LỢI NHUẬN bằng cách đánh giá:\n"
+            "1. Về Định Hướng (Research Manager): Quyết định này có chớp đúng thời cơ không? Động lực tăng trưởng có đủ mạnh không?\n"
+            "2. Về Thực Thi (Trader): Các tham số thực thi đã hợp lý chưa? Có quá khắt khe khiến ta dễ bỏ lỡ cơ hội không?\n\n"
+            
+            f"## Kế Hoạch Định Hướng từ Research:\n{sanitize_for_prompt(research_decision)}\n"
             f"Kế hoạch của Trader:\n{sanitize_for_prompt(trader_decision)}\n"
             f"{alpha_context}"
             f"Phân tích thị trường: {sanitize_for_prompt(market_research_report)}\n"
             f"Tâm lý & mạng xã hội: {sanitize_for_prompt(sentiment_report)}\n"
             f"Tin tức: {sanitize_for_prompt(news_report)}\n"
             f"Tài chính doanh nghiệp: {sanitize_for_prompt(fundamentals_report)}\n\n"
-            f"## Lịch sử tranh luận\n{sanitize_for_prompt(history)}\n\n"
+            f"## Lịch sử tranh luận\n{sanitize_for_prompt(history)}\n"
             f"Safe Analyst: {sanitize_for_prompt(current_safe_response)}\n"
             f"Neutral Analyst: {sanitize_for_prompt(current_neutral_response)}\n\n"
-            "Phản biện trực tiếp các lo ngại của Safe Analyst bằng bằng chứng cụ thể. "
+            
+            "Hãy phản biện các lo ngại của Safe Analyst bằng bằng chứng cụ thể. "
             "Chỉ ra nơi họ đang phóng đại rủi ro hoặc bỏ qua cơ hội. "
+            "Nếu định hướng của Research là đúng đắn, "
+            "hãy lập luận để giữ nguyên lệnh. Nếu rủi ro thấp mà phần thưởng cao, hãy mạnh dạn đề xuất nới lỏng tham số thực thi."
             "Viết theo phong cách hội thoại tranh luận tự nhiên."
         )
 

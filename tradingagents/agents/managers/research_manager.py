@@ -13,7 +13,7 @@ def create_research_manager(llm):
 
         if horizon == "short":
             horizon_note = (
-                "Đây là quyết định cho chiến lược NGẮN HẠN (2–5 ngày). "
+                "Đây là quyết định cho chiến lược NGẮN HẠN (2-5 ngày). "
                 "Ba quyết định hợp lệ: BUY, SELL, HOLD."
             )
         else:
@@ -43,7 +43,7 @@ def create_research_manager(llm):
             "**Bear:** [Luận điểm có bằng chứng thuyết phục nhất]\n\n"
 
             "#### Đánh Giá\n"
-            "[2–3 câu: bên nào có bằng chứng thuyết phục hơn và tại sao]\n\n"
+            "[2-3 câu: bên nào có bằng chứng thuyết phục hơn và tại sao]\n\n"
 
             f"#### Quyết Định: **{decision_choices}**\n\n"
 
