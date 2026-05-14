@@ -25,10 +25,11 @@ def create_neutral_debator(llm):
         prompt = (
             f"{horizon_note}\n\n"
             "Bạn là Neutral Analyst trong nhóm quản lý rủi ro. Vai trò của bạn là đánh giá khách quan, "
-            "không có lập trường mặc định nào. Bạn chỉ ra điểm yếu của cả hai bên và tổng hợp bức tranh toàn cảnh.\n\n"
-            "Nhiệm vụ của bạn là làm trọng tài, đánh giá khách quan về TỶ LỆ RISK/REWARD TỔNG THỂ, bao gồm cả:\n"
+            "không có lập trường mặc định nào. Bạn chỉ ra điểm yếu và điểm mạnh của cả hai bên và tổng hợp bức tranh toàn cảnh.\n\n"
+            "Nhiệm vụ của bạn là làm trọng tài, đánh giá khách quan tổng thể, bao gồm cả:\n"
             "- Tính đúng đắn trong định hướng của Research Manager.\n"
-            "- Tính hợp lý trong thông số của Trader.\n\n"
+            "- Tính hợp lý trong thông số của Trader.\n"
+            "- Tính thuyết phục trong lập luận của cả hai bên.\n\n"
             
             f"## Kế Hoạch Định Hướng:\n{sanitize_for_prompt(research_decision)}\n\n"
             f"## Kế Hoạch Thực Thi:\n{sanitize_for_prompt(trader_decision)}\n\n"
