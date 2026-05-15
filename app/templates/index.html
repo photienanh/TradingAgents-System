@@ -320,14 +320,23 @@
                 <h2><i class="fa-solid fa-flask-vial" style="color:var(--primary);margin-right:.5rem;"></i>Alpha Library</h2>
                 <p>Alpha management and generation</p>
             </div>
- 
-            <!-- Tabs -->
-            <div class="alpha-tabs">
-                <button class="alpha-tab-btn active" data-tab="library" onclick="window._switchAlphaTab('library')">
-                    <i class="fa-solid fa-database"></i> Library
-                </button>
-                <button class="alpha-tab-btn" data-tab="pipeline" onclick="window._switchAlphaTab('pipeline')">
-                    <i class="fa-solid fa-gear"></i> Alpha Generator
+            
+            <!-- Tabs + Refresh -->
+            <div class="alpha-tabs-row">
+                <div class="alpha-tabs">
+                    <button class="alpha-tab-btn active" data-tab="library" onclick="window._switchAlphaTab('library')">
+                        <i class="fa-solid fa-database"></i> Library
+                    </button>
+                    <button class="alpha-tab-btn" data-tab="signals" onclick="window._switchAlphaTab('signals')">
+                        <i class="fa-solid fa-signal"></i> Signals
+                    </button>
+                    <button class="alpha-tab-btn" data-tab="pipeline" onclick="window._switchAlphaTab('pipeline')">
+                        <i class="fa-solid fa-gear"></i> Alpha Generator
+                    </button>
+                </div>
+                <button id="alpha-refresh-btn" class="alpha-refresh-btn" onclick="window._triggerDataRefresh()">
+                    <i class="fa-solid fa-cloud-arrow-down"></i>
+                    <span id="alpha-refresh-label">Cập nhật dữ liệu</span>
                 </button>
             </div>
  
@@ -358,7 +367,48 @@
                     </table>
                 </div>
             </div>
- 
+            
+            <!-- Tab: Signals -->
+            <div class="alpha-tab-pane" id="alpha-tab-signals">
+                <div class="alpha-library-header">
+                    <span id="alpha-signals-stats" class="alpha-stats-badge">—</span>
+                    <div style="display:flex;align-items:center;gap:0.5rem;">
+                        <span id="alpha-signals-asof" class="alpha-stats-badge"></span>
+                        <button class="btn-sm btn-ghost" onclick="window._loadAlphaSignals(true)">
+                            <i class="fa-solid fa-rotate-right"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="alpha-signals-filter">
+                    <button class="signals-filter-btn active" data-filter="all" onclick="window._filterSignals('all', this)">Tất cả</button>
+                    <button class="signals-filter-btn" data-filter="long" onclick="window._filterSignals('long', this)">Long</button>
+                    <button class="signals-filter-btn" data-filter="slightly long" onclick="window._filterSignals('slightly long', this)">Slightly Long</button>
+                    <button class="signals-filter-btn" data-filter="neutral" onclick="window._filterSignals('neutral', this)">Neutral</button>
+                    <button class="signals-filter-btn" data-filter="slightly short" onclick="window._filterSignals('slightly short', this)">Slightly Short</button>
+                    <button class="signals-filter-btn" data-filter="short" onclick="window._filterSignals('short', this)">Short</button>
+                </div>
+                <div class="alpha-table-wrap">
+                    <table class="alpha-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th class="sortable-col" onclick="window._sortSignals('ticker')" style="cursor:pointer;">
+                                    Mã <span id="sort-ticker-icon">↕</span>
+                                </th>
+                                <th class="sortable-col" onclick="window._sortSignals('signal')" style="cursor:pointer;">
+                                    Signal <span id="sort-signal-icon">↕</span>
+                                </th>
+                                <th>Side</th>
+                                <th>As of</th>
+                            </tr>
+                        </thead>
+                        <tbody id="alpha-signals-body">
+                            <tr><td colspan="8" class="alpha-loading">Chưa tải...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <!-- Tab: Pipeline -->
             <div class="alpha-tab-pane" id="alpha-tab-pipeline">
                 <div class="pipeline-card">

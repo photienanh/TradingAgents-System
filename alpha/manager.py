@@ -61,7 +61,7 @@ def _load_latest_cache() -> None:
         log.warning("[AlphaManager] Failed loading cache %s: %s", SIGNALS_PATH, exc)
 
 
-def _run_daily_task() -> None:
+def _run_daily_task(force: bool = False) -> None:
     with _STATE_LOCK:
         if _STATUS["running"]:
             return
@@ -69,7 +69,7 @@ def _run_daily_task() -> None:
         _STATUS["last_error"] = None
 
     try:
-        result = run_daily_update()
+        result = run_daily_update(skip_holiday_check=force)
         _load_latest_cache()
         with _STATE_LOCK:
             _STATUS["last_run_day"] = date.today().isoformat()
@@ -112,7 +112,12 @@ def trigger_if_needed(force: bool = False) -> Dict[str, Any]:
         skip = _check_should_skip()
         if skip:
             return skip
-    thread = threading.Thread(target=_run_daily_task, daemon=True, name="alpha-daily-runner")
+    thread = threading.Thread(
+        target=_run_daily_task,
+        kwargs={"force": force},
+        daemon=True,
+        name="alpha-daily-runner",
+    )
     thread.start()
     return {"accepted": True, "message": "Alpha daily update started"}
 
@@ -122,7 +127,7 @@ def trigger_if_needed_blocking(force: bool = False) -> Dict[str, Any]:
         skip = _check_should_skip()
         if skip:
             return skip
-    _run_daily_task()
+    _run_daily_task(force=force)
     with _STATE_LOCK:
         err    = _STATUS.get("last_error")
         result = _STATUS.get("last_result")

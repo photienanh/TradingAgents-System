@@ -54,8 +54,27 @@ async def alpha_library_delete(alpha_id: str) -> Dict[str, Any]:
     with open(ALPHA_LIBRARY_PATH, "w", encoding="utf-8") as f:
         json.dump(alphas, f, ensure_ascii=False, indent=2)
     return {"deleted": alpha_id, "remaining": len(alphas)}
+
+@router.post("/refresh")
+async def alpha_refresh(force: bool = Query(default=True)):
+    """Trigger market data refresh và rebuild alpha signals."""
+    from alpha.manager import trigger_if_needed
+    result = trigger_if_needed(force=force)
+    return result 
  
- 
+@router.get("/signals")
+async def alpha_signals_all(limit: int = Query(default=0, ge=0)):
+    from alpha.manager import get_all_signals, get_status
+    signals = get_all_signals(limit=limit if limit > 0 else None)
+    status  = get_status()
+    rows = sorted(signals.values(), key=lambda x: (x.get("signal_today") or 0), reverse=True)
+    return {
+        "total":       len(rows),
+        "as_of":       status.get("last_run_at"),
+        "last_run_day": status.get("last_run_day"),
+        "signals":     rows,
+    }
+
 # ── Pipeline run with SSE log streaming ─────────────────────────────────
  
 class _QueueHandler(logging.Handler):

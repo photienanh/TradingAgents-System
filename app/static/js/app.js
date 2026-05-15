@@ -9,16 +9,20 @@
  */
 import { startAnalysis, startNewAnalysis, cancelCurrentAnalysis, clearStatusPolling } from './analysis.js';
 import { loadSessions, viewSession, deleteSession, closeSessionReviewModal } from './sessions.js';
-import { loadAlphaLibrary, runAlphaPipeline, stopAlphaPipeline, switchAlphaTab, deleteAlpha } from './alpha_panel.js';
+import { loadAlphaLibrary, runAlphaPipeline, stopAlphaPipeline, switchAlphaTab, deleteAlpha, loadAlphaSignals, filterSignals, triggerDataRefresh, sortSignals } from './alpha_panel.js';
 
 // ── Expose to inline onclick handlers (HTML uses window.* calls) ──────────
-window._deleteAlpha = deleteAlpha;
-window._viewSession   = viewSession;
-window._deleteSession = deleteSession;
-window._loadAlphaLibrary  = (force) => loadAlphaLibrary(force);
-window._runAlphaPipeline  = runAlphaPipeline;
-window._stopAlphaPipeline = stopAlphaPipeline;
-window._switchAlphaTab    = switchAlphaTab;
+window._deleteAlpha         = deleteAlpha;
+window._viewSession         = viewSession;
+window._deleteSession       = deleteSession;
+window._loadAlphaLibrary    = (force) => loadAlphaLibrary(force);
+window._runAlphaPipeline    = runAlphaPipeline;
+window._stopAlphaPipeline   = stopAlphaPipeline;
+window._switchAlphaTab      = switchAlphaTab;
+window._loadAlphaSignals    = loadAlphaSignals;
+window._filterSignals       = filterSignals;
+window._triggerDataRefresh  = triggerDataRefresh;
+window._sortSignals         = sortSignals;
 
 // ── Tab setup ─────────────────────────────────────────────────────────────
 function setupTabs(containerEl) {

@@ -537,6 +537,7 @@ def _recalculate_indicators(merged: pd.DataFrame, ticker: str) -> pd.DataFrame:
 def refresh_market_data_daily(
     tickers: Optional[List[str]] = None,
     daily_start_hour: int = 9,
+    skip_holiday_check: bool = False,
 ) -> Dict[str, Any]:
     """Incrementally update market CSVs for selected tickers."""
     if tickers is None:
@@ -577,7 +578,7 @@ def refresh_market_data_daily(
                     # Có mã mới → không phải holiday
                     probe_no_new = 0
 
-            if idx == HOLIDAY_PROBE_COUNT and probe_no_new >= HOLIDAY_PROBE_COUNT:
+            if not skip_holiday_check and idx == HOLIDAY_PROBE_COUNT and probe_no_new >= HOLIDAY_PROBE_COUNT:
                 holiday_detected = True
                 log.info(
                     "[DailyRunner] Holiday detected: %d/%d probe tickers had no new data. Stopping.",
@@ -639,8 +640,9 @@ def save_signals_snapshot(snapshot: Dict[str, Dict[str, Any]]) -> Path:
 def run_daily_update(
     tickers: Optional[List[str]] = None,
     daily_start_hour: int = 9,
+    skip_holiday_check: bool = False,
 ) -> Dict[str, Any]:
-    market = refresh_market_data_daily(tickers=tickers, daily_start_hour=daily_start_hour)
+    market = refresh_market_data_daily(tickers=tickers, daily_start_hour=daily_start_hour, skip_holiday_check=skip_holiday_check)
 
     if market.get("holiday_detected"):
         log.info("[DailyRunner] Holiday detected — skipping signal snapshot rebuild.")

@@ -686,3 +686,111 @@ code.alpha-expr-code {
     opacity: 0.3;
     filter: grayscale(1);
 }
+/* ── Data Refresh Bar ── */
+.refresh-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0 1rem;
+}
+
+.refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.9rem;
+    background: var(--accent, #3b82f6);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+.refresh-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.refresh-btn:hover:not(:disabled) { opacity: 0.85; }
+
+.refresh-status-badge {
+    font-size: 0.78rem;
+    color: var(--text-muted, #888);
+}
+.refresh-status-badge.running { color: #f59e0b; }
+.refresh-status-badge.idle    { color: var(--text-muted, #888); }
+/* ── Alpha tabs row (tabs + refresh btn) ── */
+.alpha-tabs-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 1.25rem;
+    border-bottom: 2px solid var(--border);
+}
+.alpha-tabs-row .alpha-tabs {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+.alpha-refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 2px;
+    padding: 0.35rem 0.8rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    white-space: nowrap;
+}
+.alpha-refresh-btn:hover:not(:disabled) {
+    color: var(--primary);
+    border-color: var(--primary);
+    background: rgba(99,102,241,0.06);
+}
+.alpha-refresh-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+.alpha-refresh-btn.running {
+    color: #f59e0b;
+    border-color: #f59e0b;
+}
+
+/* ── Signals filter pills ── */
+.alpha-signals-filter {
+    display: flex;
+    gap: 0.35rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+}
+.signals-filter-btn {
+    padding: 0.25rem 0.7rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.signals-filter-btn:hover { border-color: var(--primary); color: var(--primary); }
+.signals-filter-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+/* ── Side badge ── */
+.side-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.side-long         { background: rgba(16,185,129,0.15); color: #059669; }
+.side-slightly-long { background: rgba(16,185,129,0.08); color: #34d399; }
+.side-short        { background: rgba(239,68,68,0.15);  color: #dc2626; }
+.side-slightly-short { background: rgba(239,68,68,0.08); color: #f87171; }
+.side-neutral      { background: rgba(156,163,175,0.15); color: #6b7280; }

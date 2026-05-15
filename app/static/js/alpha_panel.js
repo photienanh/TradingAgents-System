@@ -133,6 +133,7 @@ export function switchAlphaTab(tab) {
     if (btn)  btn.classList.add('active');
     if (pane) pane.classList.add('active');
     if (tab === 'library') loadAlphaLibrary();
+    if (tab === 'signals') loadAlphaSignals();
 }
 
 export async function deleteAlpha(alphaId) {
@@ -194,4 +195,150 @@ function escHtml(str) {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+}
+
+// ── Alpha Signals Tab ─────────────────────────────────────────────────────
+
+let _signalsLoaded  = false;
+let _signalsData    = [];
+let _signalsFilter  = 'all';
+let _signalsSortKey = null;
+let _signalsSortAsc = true;
+
+export async function loadAlphaSignals(forceReload = false) {
+    if (_signalsLoaded && !forceReload) return;
+    const body   = document.getElementById('alpha-signals-body');
+    const stats  = document.getElementById('alpha-signals-stats');
+    const asofEl = document.getElementById('alpha-signals-asof');
+    if (!body) return;
+
+    body.innerHTML = '<tr><td colspan="8" class="alpha-loading">Đang tải...</td></tr>';
+    try {
+        const res  = await fetch('/api/alpha/signals');
+        const data = await res.json();
+        _signalsData   = data.signals || [];
+        _signalsLoaded = true;
+
+        if (stats) stats.textContent = `${data.total} mã`;
+        if (asofEl && data.last_run_day) {
+            const t = data.as_of ? new Date(data.as_of).toLocaleTimeString('vi-VN') : '';
+            asofEl.textContent = `as of ${data.last_run_day}${t ? ' ' + t : ''}`;
+        }
+        _renderSignals();
+    } catch (err) {
+        body.innerHTML = `<tr><td colspan="8" class="alpha-loading alpha-error">Lỗi: ${err.message}</td></tr>`;
+    }
+}
+
+export function filterSignals(filter, btnEl) {
+    _signalsFilter = filter;
+    document.querySelectorAll('.signals-filter-btn').forEach(b => b.classList.remove('active'));
+    if (btnEl) btnEl.classList.add('active');
+    _renderSignals();
+}
+
+export function sortSignals(key) {
+    if (_signalsSortKey === key) {
+        _signalsSortAsc = !_signalsSortAsc;
+    } else {
+        _signalsSortKey = key;
+        _signalsSortAsc = true;
+        ['ticker', 'signal'].forEach(k => {
+            const el = document.getElementById(`sort-${k}-icon`);
+            if (el) el.textContent = '↕';
+        });
+    }
+    const icon = document.getElementById(`sort-${key}-icon`);
+    if (icon) icon.textContent = _signalsSortAsc ? '↑' : '↓';
+    _renderSignals();
+}
+
+function _renderSignals() {
+    const body = document.getElementById('alpha-signals-body');
+    if (!body) return;
+
+    let filtered = _signalsFilter === 'all'
+        ? [..._signalsData]
+        : _signalsData.filter(s => s.side === _signalsFilter);
+
+    if (_signalsSortKey === 'ticker') {
+        filtered.sort((a, b) => {
+            const cmp = (a.ticker || '').localeCompare(b.ticker || '');
+            return _signalsSortAsc ? cmp : -cmp;
+        });
+    } else if (_signalsSortKey === 'signal') {
+        filtered.sort((a, b) => {
+            const av = a.signal_today ?? -Infinity;
+            const bv = b.signal_today ?? -Infinity;
+            return _signalsSortAsc ? av - bv : bv - av;
+        });
+    }
+
+    if (!filtered.length) {
+        body.innerHTML = '<tr><td colspan="5" class="alpha-loading">Không có dữ liệu.</td></tr>';
+        return;
+    }
+
+    body.innerHTML = filtered.map((s, i) => {
+        const sig    = s.signal_today != null ? s.signal_today.toFixed(4) : '—';
+        const asof   = s.as_of ? s.as_of.slice(0, 10) : '—';
+        const sideKey = (s.side || 'neutral').replace(/ /g, '-');
+        const sigCls  = s.signal_today > 0 ? 'metric-pos' : s.signal_today < 0 ? 'metric-neg' : '';
+        return `<tr>
+            <td class="alpha-rank">${i + 1}</td>
+            <td style="font-weight:700;font-family:'JetBrains Mono',monospace;font-size:0.82rem;">${escHtml(s.ticker)}</td>
+            <td class="alpha-metric ${sigCls}" style="text-align:center;">${sig}</td>
+            <td style="text-align:center;"><span class="side-badge side-${sideKey}">${escHtml(s.side || 'neutral')}</span></td>
+            <td class="alpha-metric" style="font-size:0.72rem;color:var(--text-muted);">${asof}</td>
+        </tr>`;
+    }).join('');
+}
+
+// ── Data Refresh ──────────────────────────────────────────────────────────
+
+let _refreshPollingTimer = null;
+
+export async function triggerDataRefresh() {
+    const btn      = document.getElementById('alpha-refresh-btn');
+    const labelEl  = document.getElementById('alpha-refresh-label');
+
+    if (btn)    { btn.disabled = true; btn.classList.add('running'); }
+    if (labelEl) labelEl.textContent = 'Đang cập nhật...';
+
+    try {
+        const res  = await fetch('/api/alpha/refresh', { method: 'POST' });
+        const data = await res.json();
+        if (!data.accepted) {
+            _setRefreshIdle(btn, labelEl, data.message || 'Không thể chạy');
+            return;
+        }
+        _pollRefreshStatus(btn, labelEl);
+    } catch (e) {
+        _setRefreshIdle(btn, labelEl, 'Lỗi kết nối');
+    }
+}
+
+function _pollRefreshStatus(btn, labelEl) {
+    if (_refreshPollingTimer) clearInterval(_refreshPollingTimer);
+    _refreshPollingTimer = setInterval(async () => {
+        try {
+            const res  = await fetch('/api/alpha/status');
+            const data = await res.json();
+            if (!data.running) {
+                clearInterval(_refreshPollingTimer);
+                _refreshPollingTimer = null;
+                const lastAt = data.last_run_at
+                    ? new Date(data.last_run_at).toLocaleTimeString('vi-VN')
+                    : '';
+                _setRefreshIdle(btn, labelEl, lastAt ? `Cập nhật lúc ${lastAt}` : 'Cập nhật dữ liệu');
+                _signalsLoaded = false;
+                _libraryLoaded = false;
+            }
+        } catch (_) {}
+    }, 2000);
+}
+
+function _setRefreshIdle(btn, labelEl, message = 'Cập nhật dữ liệu') {
+    if (btn)    { btn.disabled = false; btn.classList.remove('running'); }
+    if (labelEl) labelEl.textContent = message;
 }
