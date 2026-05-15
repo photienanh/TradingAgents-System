@@ -69,7 +69,7 @@ def _run_daily_task(force: bool = False) -> None:
         _STATUS["last_error"] = None
 
     try:
-        result = run_daily_update(skip_holiday_check=force)
+        result = run_daily_update(force=force)
         _load_latest_cache()
         with _STATE_LOCK:
             _STATUS["last_run_day"] = date.today().isoformat()

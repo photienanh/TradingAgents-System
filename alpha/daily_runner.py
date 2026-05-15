@@ -381,6 +381,7 @@ def _refresh_ticker_market_data(
     market_data_dir: Path = MARKET_DATA_DIR,
     daily_start_hour: int = 9,
     now: Optional[datetime] = None,
+    force_refresh: bool = False,
 ) -> Dict[str, Any]:
     """Best-effort incremental update + tính indicator cho một ticker."""
     if now is None:
@@ -394,6 +395,10 @@ def _refresh_ticker_market_data(
     before_day = last_day.date() if last_day is not None else None
 
     should, reason = _should_refresh(path, now, daily_start_hour)
+    if force_refresh:
+        should = True
+        reason = "force_refresh"
+
     if not should:
         return {
             "changed": False,
@@ -538,6 +543,7 @@ def refresh_market_data_daily(
     tickers: Optional[List[str]] = None,
     daily_start_hour: int = 9,
     skip_holiday_check: bool = False,
+    force_refresh: bool = False,
 ) -> Dict[str, Any]:
     """Incrementally update market CSVs for selected tickers."""
     if tickers is None:
@@ -560,6 +566,7 @@ def refresh_market_data_daily(
                 ticker,
                 daily_start_hour=daily_start_hour,
                 now=now,
+                force_refresh=force_refresh,
             )
             is_changed = bool(result.get("changed"))
             n_new = int(result.get("new_rows") or 0)
@@ -640,9 +647,14 @@ def save_signals_snapshot(snapshot: Dict[str, Dict[str, Any]]) -> Path:
 def run_daily_update(
     tickers: Optional[List[str]] = None,
     daily_start_hour: int = 9,
-    skip_holiday_check: bool = False,
+    force: bool = False,
 ) -> Dict[str, Any]:
-    market = refresh_market_data_daily(tickers=tickers, daily_start_hour=daily_start_hour, skip_holiday_check=skip_holiday_check)
+    market = refresh_market_data_daily(
+        tickers=tickers,
+        daily_start_hour=daily_start_hour,
+        skip_holiday_check=force,
+        force_refresh=force,
+    )
 
     if market.get("holiday_detected"):
         log.info("[DailyRunner] Holiday detected — skipping signal snapshot rebuild.")
