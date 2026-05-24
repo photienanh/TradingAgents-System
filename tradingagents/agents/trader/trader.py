@@ -30,11 +30,11 @@ def create_trader(llm):
                 "#### 2. Thông Số Thực Thi\n"
                 "- **Khung thời gian vào lệnh (Entry Timeframe):** [VD: Trong phiên hôm nay, Chờ nhịp chỉnh 1-2 phiên tới...]\n"
                 "- **Điều kiện kích hoạt (Entry Trigger):** [VD: Giá bứt phá kháng cự X kèm Volume lớn, MACD cắt lên...]\n"
-                "- **Vùng giá thực thi (Execution Zone):** [Khoảng giá Mua/Bán cụ thể trích xuất từ hỗ trợ/kháng cự. Nếu HOLD thì không ghi trường này.]\n"
-                "- **Mục tiêu chốt lời (Take Profit):** [Chỉ ghi nếu lệnh là MUA]\n"
-                "- **Ngưỡng cắt lỗ (Stop Loss):** [Mức giá cắt lỗ để bảo vệ vốn. Chỉ ghi nếu lệnh là MUA]\n"
-                "- **Tỷ lệ Rủi ro/Lợi nhuận (Chỉ tính nếu lệnh là MUA]\n"
-                "- **Tỷ trọng vốn (Position Size):** [Đề xuất % giải ngân, Nếu HOLD, không ghi trường này]\n\n"
+                "- **Vùng giá thực thi (Execution Zone):** (Nếu HOLD thì không ghi trường này) [Khoảng giá Mua/Bán cụ thể trích xuất từ hỗ trợ/kháng cự]\n"
+                "- **Mục tiêu chốt lời (Take Profit):** (Không ghi nếu lệnh là SELL/HOLD)\n"
+                "- **Ngưỡng cắt lỗ (Stop Loss):** (Không ghi nếu lệnh là SELL/HOLD) [Mức giá cắt lỗ để bảo vệ vốn]\n"
+                "- **Tỷ lệ Rủi ro/Lợi nhuận (Risk/Rewart Ratio):** (Không ghi nếu lệnh là SELL/HOLD) [Tỷ lệ R/R]\n"
+                "- **Tỷ trọng vốn (Position Size):** (Nếu là HOLD không ghi trường này) [Đề xuất % giải ngân]\n\n"
                 "#### 3. Căn cứ thiết lập thông số\n"
                 "[Phân tích tại sao chọn các mức giá hỗ trợ/kháng cự và tỷ lệ R/R này dựa trên dữ liệu]"
             )
@@ -48,7 +48,7 @@ def create_trader(llm):
                 "#### 1. Đánh giá vị thế giá\n"
                 "- **Chỉ thị từ Research Manager:** [Nêu lại quyết định BUY/ NOT BUY]\n"
                 "- **Đánh giá biên an toàn:** [Nhận xét xu hướng giá dài hạn hiện tại có cho điểm gom mua tốt không]\n\n"
-                "#### 2. Thông Số Giải Ngân\n"
+                "#### 2. Thông Số Thực Thi\n"
                 "- **Khung thời gian thực thi (Execution Timeframe):** [VD: Rải lệnh gom trong 2-4 tuần tới...]\n"
                 "- **Điều kiện kích hoạt (Trigger):** [Điều kiện kích hoạt giao dịch]\n"
                 "- **Vùng giá gom mua (Accumulation Zone):** [Khoảng giá thực thi. Chỉ ghi nếu lệnh là MUA]\n"
@@ -65,8 +65,10 @@ def create_trader(llm):
                 "content": (
                     f"Bạn là Trader - người xây dựng kế hoạch giao dịch cho {sanitize_for_prompt(company_name)}.\n\n"
                     f"## CHIẾN LƯỢC\n{horizon_sys}\n\n"
-                    "Bạn KHÔNG ĐƯỢC PHÉP thay đổi quyết định giao dịch. Quyết định ĐÃ ĐƯỢC CHỐT bởi Research Manager."
-                    "Bạn PHẢI sử dụng các mức giá thực tế từ 'Dữ liệu Thị trường' (market_report) để thiết lập các thông số vào lệnh."
+                    "Bạn KHÔNG ĐƯỢC PHÉP thay đổi quyết định giao dịch. Quyết định ĐÃ ĐƯỢC CHỐT bởi Research Manager. "
+                    "Bạn PHẢI sử dụng các mức giá thực tế từ 'Dữ liệu Thị trường' (market_report) để thiết lập các thông số vào lệnh. "
+                    "Các thông số thực thi nào được yêu cầu không ghi thì TUYỆT ĐỐI không trả về, ví dụ 'Nếu là HOLD không ghi trường này'" 
+                    "tức là Chỉ có trường hợp BUY hoặc SELL mới được phép trả về trường thông số này, nếu là HOLD thì loại luôn thông số này khỏi output, không ghi gì thêm.\n\n"
                 ),
             },
             {

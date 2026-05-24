@@ -17,7 +17,7 @@ from tradingagents.agents import (
     create_neutral_debator,
     create_news_analyst,
     create_risky_debator,
-    create_risk_manager,
+    create_portfolio_manager,
     create_safe_debator,
     create_social_media_analyst,
     create_trader,
@@ -83,7 +83,7 @@ class GraphSetup:
         risky_analyst         = create_risky_debator(self.quick_thinking_llm)
         neutral_analyst       = create_neutral_debator(self.quick_thinking_llm)
         safe_analyst          = create_safe_debator(self.quick_thinking_llm)
-        risk_manager_node     = create_risk_manager(self.deep_thinking_llm)
+        risk_manager_node     = create_portfolio_manager(self.deep_thinking_llm)
 
         # ── Build graph ────────────────────────────────────────────────
         workflow = StateGraph(AgentState)

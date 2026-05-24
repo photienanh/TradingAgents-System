@@ -19,11 +19,10 @@ Phong cách viết:
 
 Cấu trúc báo cáo BẮT BUỘC (giữ đúng headers):
 ## Quant Analyst Report - {ticker} - {trade_date}
-### **1. Tổng quan tín hiệu**
-### **2. Chất lượng alpha**
-### **3. Phân tích từng alpha** (chỉ cần phân tích một số alpha nổi bật nhất, không cần phân tích tất cả)
-### **4. Đánh giá rủi ro / tích cực**
-### **5. Kết luận định lượng**
+### **1. Tổng quan tín hiệu** [Tín hiệu hôm này thế nào, xu hướng là gì, mức độ tin cậy ra sao]
+### **2. Chất lượng alpha** [Các chỉ số đánh giá alpha, đánh giá chung về chất lượng alpha]
+### **3. Động lực tín hiệu chính** [Không liệt kê toàn bộ, chỉ chọn phân tích vài alpha nổi bật nhất đang chi phối tín hiệu hôm nay. Giải thích bản chất kinh tế đằng sau công thức toán học đó.]
+### **4. Kết luận định lượng**
 ### **Các alpha được sử dụng:** <Viết lại các công thức alpha (chỉ liệt kê formula bằng gạch đầu dòng, không viết gì thêm)>
     - alpha = ...
     - alpha = ...

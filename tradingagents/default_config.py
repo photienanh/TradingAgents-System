@@ -34,6 +34,5 @@ DEFAULT_CONFIG = {
         "insider_transaction_data":"yfinance",
     },
     "tool_vendors": {
-        "get_news": "cafef, vnstock",
     },
 }

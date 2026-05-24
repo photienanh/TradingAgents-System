@@ -1,10 +1,10 @@
 """
-tradingagents/agents/managers/risk_manager.py
+tradingagents/agents/managers/porfolio_manager.py
 """
 from tradingagents.agents.utils.text_sanitize import sanitize_for_prompt
 
-def create_risk_manager(llm):
-    def risk_manager_node(state) -> dict:
+def create_portfolio_manager(llm):
+    def portfolio_manager_node(state) -> dict:
 
         company_name      = state["company_of_interest"]
         trade_date        = state.get("trade_date", "N/A")
@@ -23,7 +23,7 @@ def create_risk_manager(llm):
             decision_section = (
                 "#### Quyết Định: **[BUY / SELL / HOLD]**\n\n"
                 "#### Thông số thực thi\n"
-                "[Đưa ra thông số thực thi phù hợp nhất]"
+                "[Đưa ra thông số thực thi phù hợp nhất, các trường thông số ]"
                 "#### Lý Do\n"
                 "[Lý do dẫn đến quyết định, dựa trên bằng chứng từ tranh luận]"
             )
@@ -92,4 +92,4 @@ def create_risk_manager(llm):
             "final_trade_decision": response.content,
         }
 
-    return risk_manager_node
+    return portfolio_manager_node

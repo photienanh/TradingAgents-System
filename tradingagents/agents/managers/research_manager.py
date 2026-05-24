@@ -16,11 +16,13 @@ def create_research_manager(llm):
                 "Đây là quyết định cho chiến lược NGẮN HẠN (2-5 ngày). "
                 "Ba quyết định hợp lệ: BUY, SELL, HOLD."
             )
+            quant_report = state.get("quant_report", "")
         else:
             horizon_note = (
                 "Đây là quyết định cho chiến lược ĐẦU TƯ DÀI HẠN. "
                 "Hai quyết định hợp lệ: BUY hoặc NOT BUY."
             )
+            quant_report = ""
 
         decision_choices = "BUY/SELL/HOLD" if horizon == "short" else "BUY hoặc NOT BUY"
 
@@ -33,6 +35,7 @@ def create_research_manager(llm):
             "Chỉ chất lượng bằng chứng quyết định kết quả - không có chiều hướng nào là 'mặc định' hay 'an toàn hơn'.\n"
 
             f"## LỊCH SỬ TRANH LUẬN\n{sanitize_for_prompt(history)}\n\n"
+            f"## BÁO CÁO ĐỊNH LƯỢNG\n{sanitize_for_prompt(quant_report)}\n\n"
 
             "---\n"
             f"## YÊU CẦU OUTPUT\n\n"
