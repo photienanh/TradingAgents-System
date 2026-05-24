@@ -1,8 +1,5 @@
 # agents/alpha_generator_agent.py
-"""
-Quant Developer agent — paper Section 2.2 (Implementation).
-RAG từ knowledge base, fallback từ KB thay vì hardcode.
-"""
+
 import json
 import logging
 import random

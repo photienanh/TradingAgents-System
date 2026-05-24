@@ -1,13 +1,5 @@
 """
 app/services/session_serialization.py
-
-Serialization helpers cho session data.
-Đây là single source of truth cho:
-- rebuild_reports_from_final_state()
-- rebuild_agent_status_from_final_state()
-- SECTION_TITLES, ORDERED_SECTIONS, DEFAULT_AGENT_NAMES (constants)
-
-main.py import từ đây, không define lại.
 """
 import datetime
 import re
@@ -284,28 +276,6 @@ def build_persistable_session(session_data: Dict[str, Any]) -> Dict[str, Any]:
     }
     persistable.update(extract_buffer_snapshot(session_data.get("message_buffer")))
     return persistable
-
-
-# ---------------------------------------------------------------------------
-# Các hàm cũ giữ lại để không break import ở nơi khác
-# ---------------------------------------------------------------------------
-
-def extract_tool_call_names(message: Any) -> List[str]:
-    names: List[str] = []
-    tool_calls = (
-        message.get("tool_calls") if isinstance(message, dict)
-        else getattr(message, "tool_calls", None)
-    )
-    if not isinstance(tool_calls, list):
-        return names
-    for call in tool_calls:
-        name = (
-            call.get("name") or call.get("tool") if isinstance(call, dict)
-            else getattr(call, "name", None) or getattr(call, "tool", None)
-        )
-        if isinstance(name, str) and name:
-            names.append(name)
-    return names
 
 
 def to_positive_int(value: Any, default: int) -> int:

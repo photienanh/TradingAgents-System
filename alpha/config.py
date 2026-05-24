@@ -27,7 +27,7 @@ class PipelineConfig:
 
     # Data
     min_history_days: int = 30
-    forward_return_horizon: int = 2  # T+2 settlement (changed from T+1)
+    forward_return_horizon: int = 2
     
     # Costs
     short_tax_rate: float = 0.001  # 0.1% VN transaction tax on short positions

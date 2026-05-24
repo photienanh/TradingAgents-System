@@ -90,6 +90,7 @@ Nguyên tắc bắt buộc:
 6. Dùng div(a, b) thay vì a/b để tránh chia cho 0
 7. ts_zscore_scale(s, w) LUÔN cần đúng 2 args
 8. Field names phải lowercase: df['close'] không phải df['Close']
+9. Tuyệt đối không sinh lại alpha giống hoặc gần giống với ví dụ hoặc các alpha vòng trước
 
 Phản hồi BẮT BUỘC là JSON hợp lệ."""
 

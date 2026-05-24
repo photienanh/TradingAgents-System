@@ -1,6 +1,5 @@
 """
 tradingagents/graph/propagation.py
-State propagation helpers for graph execution.
 """
 
 from typing import Dict, Any
@@ -15,7 +14,6 @@ class Propagator:
         self,
         company_name: str,
         trade_date: str,
-        alpha_signal: Dict[str, Any] | None = None,
         trading_horizon: str = "short",
     ) -> Dict[str, Any]:
         return {

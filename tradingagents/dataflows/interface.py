@@ -84,15 +84,6 @@ TOOLS_CATEGORIES = {
     }
 }
 
-VENDOR_LIST = [
-    "vnstock",
-    "yfinance",
-    "vietstock",
-    "openai",
-    "cafef",
-    "f247",
-]
-
 
 def _is_error_result(result) -> bool:
     """Heuristic to detect stringified vendor failures that should trigger fallback."""

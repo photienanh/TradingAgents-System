@@ -1,28 +1,6 @@
 """
 alpha_kb_data.py
 Danh sách alphas từ Kakushadze (2016) "101 Formulaic Alphas".
-Chỉ giữ những alpha dùng fields: open/high/low/close/volume/vwap/adv20/returns
-và operators đã implement. Loại bỏ các alpha cần: cap, IndClass level chi tiết
-(subindustry, industry) khi không có data, adv với d khác 20.
-
-Mapping operator names:
-  Ts_Rank         → ts_rank
-  Ts_ArgMax       → ts_argmax
-  Ts_ArgMin       → ts_argmin
-  SignedPower      → signed_power
-  decay_linear    → ts_decayed_linear (hoặc decay_linear alias)
-  rank(x)         → rank(x)          (cross-sectional expanding rank)
-  delay(x,d)      → shift(x,d)  hoặc delay(x,d) (alias đã có)
-  delta(x,d)      → ts_delta(x,d) hoặc delta(x,d) (alias)
-  correlation     → ts_corr hoặc correlation (alias)
-  covariance      → ts_cov hoặc covariance (alias)
-  stddev          → ts_std hoặc stddev (alias)
-  sum(x,d)        → ts_sum(x,d) hoặc sum_op(x,d)
-  scale(x)        → scale(x)
-  sign(x)         → sign(x)
-  abs(x)          → abso(x)
-  log(x)          → log(x)
-  indneutralize(x, industry) → indneutralize(x, df['industry'])
 """
 
 ALPHA_KB: list = [

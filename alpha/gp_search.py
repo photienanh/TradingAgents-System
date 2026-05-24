@@ -1,7 +1,5 @@
 """
 gp_search.py
-Lightweight GP enhancement — paper Section 2.2, Alpha Compute Framework.
-Fitness = cross-sectional IC trên toàn bộ universe.
 """
 import re
 import random

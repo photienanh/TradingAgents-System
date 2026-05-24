@@ -1,9 +1,5 @@
 # agents/gp_agent.py
-"""
-GP Enhancement agent — paper Section 2.2, Alpha Compute Framework.
-Fitness = cross-sectional IC trên toàn bộ universe.
-Nhất quán với final backtest metric.
-"""
+
 import logging
 from typing import Any, Dict
 from langchain_core.runnables import RunnableConfig

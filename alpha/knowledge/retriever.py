@@ -1,11 +1,7 @@
 """
 knowledge/retriever.py
-Retrieve similar alphas từ FAISS index.
-Index được build tự động lần đầu và rebuild khi alpha_library có thêm entries.
-Nguồn embed:
-  - 38 alphas từ Kakushadze paper (alpha_kb_data.py)
-  - Tất cả alpha từ alpha_library.json (tích lũy qua các run)
 """
+
 import os
 import sys
 import json

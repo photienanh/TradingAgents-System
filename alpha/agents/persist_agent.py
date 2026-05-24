@@ -1,9 +1,5 @@
 # agents/persist_agent.py
-"""
-Persist agent — lưu kết quả vào SQLite và alpha_library.json.
-alpha_library.json: file chung tích lũy tất cả alpha OK qua mọi run,
-đánh số thứ tự toàn cục, dedup theo formula.
-"""
+
 import json
 import logging
 import os

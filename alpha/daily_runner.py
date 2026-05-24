@@ -1,11 +1,5 @@
 """
 alpha/daily_runner.py
-
-Daily updater for AlphaGPT integration:
-- Refresh market data CSV files (best-effort, incremental)
-- Tính toán technical indicators và lưu vào cùng file CSV
-- Build per-ticker alpha bias from top-5 alphas in data/alpha_library.json (sorted by ic_oos)
-- Persist daily signal snapshot to data/signals/
 """
 
 from __future__ import annotations

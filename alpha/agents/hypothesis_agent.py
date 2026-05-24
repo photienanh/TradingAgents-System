@@ -1,8 +1,5 @@
 # agents/hypothesis_agent.py
-"""
-Ideation stage — paper Section 2.1.
-Tích hợp RAG từ knowledge base trước khi call LLM.
-"""
+
 import json
 import logging
 import os

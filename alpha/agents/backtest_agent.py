@@ -1,8 +1,5 @@
 # agents/backtest_agent.py
-"""
-Trading Backtest Engine — paper Section 2.3.
-Full cross-sectional evaluation trên toàn universe.
-"""
+
 import logging
 import numpy as np
 import pandas as pd

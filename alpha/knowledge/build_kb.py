@@ -1,7 +1,5 @@
 """
 knowledge/build_kb.py
-Script chạy một lần để build vector DB từ 101 Formulaic Alphas.
-Sử dụng sentence-transformers (all-MiniLM-L6-v2) để embed descriptions.
 Lưu FAISS index tại knowledge/faiss_index/ và metadata tại knowledge/alpha_kb.json.
 
 Usage:

@@ -1,7 +1,5 @@
 """
 app/services/progress_tracker.py
-Derives real-time step labels and progress percentages from graph state chunks.
-Also contains MessageBuffer and agent status helpers.
 """
 from __future__ import annotations
 

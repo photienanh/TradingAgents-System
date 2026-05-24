@@ -1,7 +1,5 @@
 """
 app/main.py — TradingAgents FastAPI entrypoint.
-
-Refactored: business logic extracted to services/, routes split to routes/.
 """
 
 import datetime

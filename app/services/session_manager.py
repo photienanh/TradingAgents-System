@@ -1,7 +1,5 @@
 """
 app/services/session_manager.py
-
-Thread-safe session manager thay thế dict + lock rải rác trong main.py.
 """
 from __future__ import annotations
 

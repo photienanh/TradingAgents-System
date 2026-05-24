@@ -1,8 +1,5 @@
 # graph.py
-"""
-LangGraph workflow theo paper Alpha-GPT.
-DATA_STORE[thread_id] = (df_panel, ticker_dfs, fwd_ret_multi)
-"""
+
 import os
 import logging
 from typing import Literal, Dict, Any, Tuple

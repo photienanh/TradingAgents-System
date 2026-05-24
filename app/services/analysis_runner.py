@@ -1,6 +1,6 @@
 """
 app/services/analysis_runner.py
-Background analysis task — extracted from app/main.py.
+Background analysis task
 """
 from __future__ import annotations
 

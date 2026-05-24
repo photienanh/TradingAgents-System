@@ -1,6 +1,5 @@
 """
 tradingagents/default_config.py
-Default runtime configuration for TradingAgents.
 """
 
 import os

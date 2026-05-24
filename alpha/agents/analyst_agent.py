@@ -1,7 +1,5 @@
 # agents/analyst_agent.py
-"""
-Analyst agent — paper Section 2.3 (Review).
-"""
+
 import json
 import logging
 import numpy as np
