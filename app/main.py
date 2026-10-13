@@ -140,12 +140,12 @@ class AnalysisStatus(BaseModel):
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="index.html")
 
 
 @app.get("/market", response_class=HTMLResponse)
 async def market_page(request: Request):
-    return templates.TemplateResponse("market_new.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="market_new.html")
 
 
 @app.post("/api/analyze", response_model=AnalysisResponse)

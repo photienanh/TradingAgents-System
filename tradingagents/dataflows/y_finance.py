@@ -4,8 +4,8 @@ from dateutil.relativedelta import relativedelta
 import yfinance as yf
 import pandas as pd
 import os
-from .config import get_config
-from .utils import (
+from tradingagents.dataflows.config import get_config
+from tradingagents.dataflows.utils import (
     build_date_window,
     classify_trend,
     day_change,

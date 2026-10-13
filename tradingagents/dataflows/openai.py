@@ -2,7 +2,7 @@ from openai import OpenAI
 from typing import Any
 from datetime import datetime, timedelta
 
-from .config import get_config
+from tradingagents.dataflows.config import get_config
 
 
 def _extract_response_text(response: Any) -> str:

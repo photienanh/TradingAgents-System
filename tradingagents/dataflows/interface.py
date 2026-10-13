@@ -5,7 +5,7 @@ from typing import Annotated, Optional
 logger = logging.getLogger(__name__)
 
 # Import from vendor-specific modules
-from .y_finance import (
+from tradingagents.dataflows.y_finance import (
     get_YFin_data_online, 
     get_indicators as get_yfinance_indicators, 
     get_fundamentals as get_yfinance_fundamentals, 
@@ -15,7 +15,7 @@ from .y_finance import (
     get_insider_transactions as get_yfinance_insider_transactions, 
     get_market_context as get_yfinance_market_context
 )
-from .vnstock_finance import (
+from tradingagents.dataflows.vnstock_finance import (
     get_stock_data as get_vnstock_stock_data, 
     get_indicators as get_vnstock_indicators, 
     get_fundamentals as get_vnstock_fundamentals, 
@@ -25,13 +25,13 @@ from .vnstock_finance import (
     get_news as get_vnstock_news, 
     get_market_context as get_vnstock_market_context
 )
-from .cafef_news import get_cafef_news
-from .vietstock_news import get_vietstock_global_news
-from .openai import get_stock_news_openai, get_global_news_openai, get_fundamentals_openai
-from .social_media import get_f247_forum_posts, get_ticker_news
+from tradingagents.dataflows.cafef_news import get_cafef_news
+from tradingagents.dataflows.vietstock_news import get_vietstock_global_news
+from tradingagents.dataflows.openai import get_stock_news_openai, get_global_news_openai, get_fundamentals_openai
+from tradingagents.dataflows.social_media import get_f247_forum_posts, get_ticker_news
 
 # Configuration and routing logic
-from .config import get_config
+from tradingagents.dataflows.config import get_config
 
 # Tools organized by category
 TOOLS_CATEGORIES = {
