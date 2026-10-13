@@ -1,28 +1,35 @@
+--extra-index-url https://vnstocks.com/api/simple
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 # LLM & Agents
-openai
-langchain-openai
-langgraph
+openai==3.26.1
+langchain-openai==1.7.0
+langgraph==1.2.14
 
 # Data
-pandas
-numpy
-yfinance
-vnstock
-stockstats
-feedparser
-requests
-beautifulsoup4
-python-dateutil
+# vnstock_ezchart (required by vnstock 4.0.3) is not compatible with
+# pandas 3.x / numpy 2.3+.
+pandas==2.3.3
+numpy==2.2.6
+yfinance==1.7.0
+# vnstock 4.0.3 (pin the release commit because its PyPI files are quarantined)
+vnstock @ git+https://github.com/thinh-vu/vnstock.git@5bf05e3e494b1d109750c143e964945ed7be3f7d
+stockstats==0.6.9
+feedparser==6.0.14
+requests==2.34.2
+beautifulsoup4==4.15.0
+python-dateutil==2.9.0.post0
 
 # Vector search / RAG
-sentence-transformers
-faiss-cpu
+torch==2.14.1+cpu
+sentence-transformers==6.1.0
+faiss-cpu==1.15.1
 
 # Web app
-fastapi
-uvicorn
-jinja2
-python-multipart
+fastapi==0.143.0
+uvicorn==0.54.0
+jinja2==3.1.6
+python-multipart==0.0.32
 
 # Utils
-python-dotenv
+python-dotenv==1.2.4
